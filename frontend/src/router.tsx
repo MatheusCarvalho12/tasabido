@@ -7,11 +7,12 @@ import {
 } from '@tanstack/react-router'
 
 import { getToken } from '@/lib/auth'
+import { CadastroPage } from '@/pages/CadastroPage'
+import { CadastroSobrePage } from '@/pages/CadastroSobrePage'
 import { ForgotPasswordStubPage } from '@/pages/ForgotPasswordStubPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { ProfessionalLoginPage } from '@/pages/ProfessionalLoginPage'
-import { SignupStubPage } from '@/pages/SignupStubPage'
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -53,7 +54,13 @@ const homeRoute = createRoute({
 const signupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/cadastro',
-  component: SignupStubPage,
+  component: CadastroPage,
+})
+
+const signupSobreRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/cadastro/sobre',
+  component: CadastroSobrePage,
 })
 
 const forgotPasswordRoute = createRoute({
@@ -67,6 +74,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   professionalLoginRoute,
   signupRoute,
+  signupSobreRoute,
   forgotPasswordRoute,
 ])
 
