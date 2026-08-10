@@ -1,15 +1,16 @@
 import { useNavigate } from '@tanstack/react-router'
 
-import cenaFamilia from '@/assets/cena-familia.png'
+import cenaProfissional from '@/assets/cena-profissional.png'
 import { AuthScene } from '@/components/auth/AuthScene'
 import { BrandHeader } from '@/components/auth/BrandHeader'
 import { ClayBlobs } from '@/components/auth/ClayBlobs'
 import { LoginForm } from '@/components/auth/LoginForm'
+import { ProfessionalBadge } from '@/components/auth/ProfessionalBadge'
 import { TrustBadges } from '@/components/auth/TrustBadges'
 import { saveAuth } from '@/lib/auth'
 import type { User } from '@/types/auth'
 
-export function LoginPage() {
+export function ProfessionalLoginPage() {
   const navigate = useNavigate()
 
   const handleLoggedIn = (token: string, user: User, remember: boolean) => {
@@ -24,27 +25,36 @@ export function LoginPage() {
       <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-6xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
         <div className="w-full animate-card-in rounded-[2rem] bg-panel shadow-clay sm:rounded-[2.5rem]">
           <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
-            <div className="flex flex-col items-center gap-7 px-6 py-9 sm:px-12 sm:py-12 lg:items-start lg:gap-8 lg:px-14 lg:py-14">
-              <BrandHeader />
+            {/* Mockup profissional: bloco esquerdo centralizado no desktop */}
+            <div className="flex flex-col items-center gap-7 px-6 py-9 sm:px-12 sm:py-12 lg:gap-8 lg:px-14 lg:py-14">
+              <BrandHeader align="center" badge={<ProfessionalBadge />} />
 
               {/* Mobile: a cena fica entre a tagline e o formulário (mockup) */}
               <div className="lg:hidden">
                 <AuthScene
-                  src={cenaFamilia}
-                  alt="Médica, criança, pai e o mascote Sabidinho em um abraço acolhedor"
+                  src={cenaProfissional}
+                  alt="Psicóloga, médico, terapeuta e o mascote Sabidinho em um momento de cuidado"
                   className="mx-auto w-full max-w-72 sm:max-w-80"
                 />
               </div>
 
-              <LoginForm onLoggedIn={handleLoggedIn} />
-              <TrustBadges />
+              <LoginForm
+                authRole="professional"
+                emailPlaceholder="E-mail profissional"
+                createAccountLabel="Criar conta profissional"
+                onLoggedIn={handleLoggedIn}
+              />
+              <TrustBadges
+                align="center"
+                desktopHeartLabel="Feito com carinho para profissionais"
+              />
             </div>
 
-            {/* Desktop: cena à direita (mockup) */}
+            {/* Desktop: cena profissional à direita (mockup) */}
             <div className="hidden items-center justify-center p-6 lg:flex xl:p-10">
               <AuthScene
-                src={cenaFamilia}
-                alt="Médica, criança, pai e o mascote Sabidinho em um abraço acolhedor"
+                src={cenaProfissional}
+                alt="Psicóloga, médico, terapeuta e o mascote Sabidinho em um momento de cuidado"
                 className="w-full max-w-[540px]"
               />
             </div>

@@ -10,6 +10,7 @@ import { getToken } from '@/lib/auth'
 import { ForgotPasswordStubPage } from '@/pages/ForgotPasswordStubPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
+import { ProfessionalLoginPage } from '@/pages/ProfessionalLoginPage'
 import { SignupStubPage } from '@/pages/SignupStubPage'
 
 const rootRoute = createRootRoute({
@@ -25,6 +26,17 @@ const loginRoute = createRoute({
     }
   },
   component: LoginPage,
+})
+
+const professionalLoginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/login/profissional',
+  beforeLoad: () => {
+    if (getToken()) {
+      throw redirect({ to: '/' })
+    }
+  },
+  component: ProfessionalLoginPage,
 })
 
 const homeRoute = createRoute({
@@ -50,7 +62,13 @@ const forgotPasswordRoute = createRoute({
   component: ForgotPasswordStubPage,
 })
 
-const routeTree = rootRoute.addChildren([homeRoute, loginRoute, signupRoute, forgotPasswordRoute])
+const routeTree = rootRoute.addChildren([
+  homeRoute,
+  loginRoute,
+  professionalLoginRoute,
+  signupRoute,
+  forgotPasswordRoute,
+])
 
 export const router = createRouter({
   routeTree,

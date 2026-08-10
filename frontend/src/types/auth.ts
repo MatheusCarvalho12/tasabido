@@ -5,9 +5,12 @@ export interface User {
   role: string
 }
 
+export type AuthRole = 'family' | 'professional'
+
 export interface LoginRequest {
   email: string
   password: string
+  role?: AuthRole
 }
 
 export interface LoginResponse {

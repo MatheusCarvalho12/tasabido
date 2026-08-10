@@ -4,9 +4,9 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import { LoginForm } from './LoginForm'
+import { LoginForm, type LoginFormProps } from './LoginForm'
 
-async function renderLoginForm(onLoggedIn = vi.fn()) {
+async function renderLoginForm(props: Partial<LoginFormProps> = {}, onLoggedIn = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -15,7 +15,7 @@ async function renderLoginForm(onLoggedIn = vi.fn()) {
   const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/',
-    component: () => <LoginForm onLoggedIn={onLoggedIn} />,
+    component: () => <LoginForm onLoggedIn={onLoggedIn} {...props} />,
   })
   const forgotRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -91,6 +91,53 @@ describe('LoginForm', () => {
         'Não conseguimos falar com o servidor. Confira sua conexão e tente de novo em instantes.',
       ),
     ).toBeInTheDocument()
+
+    vi.unstubAllGlobals()
+  })
+
+  it('variante profissional: placeholder próprio, rótulo próprio e role no corpo da requisição', async () => {
+    const onLoggedIn = vi.fn()
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: 'token-profissional',
+          token_type: 'bearer',
+          user: { id: '1', name: 'Dra. Ana', email: 'ana@tasabido.com.br', role: 'professional' },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const user = userEvent.setup()
+    await renderLoginForm(
+      {
+        authRole: 'professional',
+        emailPlaceholder: 'E-mail profissional',
+        createAccountLabel: 'Criar conta profissional',
+      },
+      onLoggedIn,
+    )
+
+    expect(screen.getByPlaceholderText('E-mail profissional')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Criar conta profissional' })).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('E-mail'), 'ana@tasabido.com.br')
+    await user.type(screen.getByLabelText('Senha'), 'senha12345')
+    await user.click(screen.getByRole('button', { name: /entrar/i }))
+
+    const [request] = fetchMock.mock.calls[0]
+    expect(request.url).toBe('http://localhost:8000/auth/login')
+    expect(JSON.parse(await request.clone().text())).toMatchObject({
+      email: 'ana@tasabido.com.br',
+      password: 'senha12345',
+      role: 'professional',
+    })
+    expect(onLoggedIn).toHaveBeenCalledWith(
+      'token-profissional',
+      expect.objectContaining({ role: 'professional' }),
+      false,
+    )
 
     vi.unstubAllGlobals()
   })

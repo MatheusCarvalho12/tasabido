@@ -12,10 +12,16 @@ import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from '@/compo
 import { Input } from '@/components/ui/input'
 import { ApiRequestError, loginApi } from '@/lib/api'
 import { validateEmail, validatePassword } from '@/lib/validation'
-import type { User } from '@/types/auth'
+import type { AuthRole, User } from '@/types/auth'
 
-interface LoginFormProps {
+export interface LoginFormProps {
   onLoggedIn: (token: string, user: User, remember: boolean) => void
+  /** Papel de autenticação enviado no login (ex.: 'professional'). Omitido = família. */
+  authRole?: AuthRole
+  /** Placeholder visível do campo de e-mail (ex.: "E-mail profissional"). */
+  emailPlaceholder?: string
+  /** Rótulo do botão de criar conta (ex.: "Criar conta profissional"). */
+  createAccountLabel?: string
 }
 
 interface LoginVariables {
@@ -36,11 +42,17 @@ function messageForError(error: Error): string {
   return 'Não conseguimos falar com o servidor. Confira sua conexão e tente de novo em instantes.'
 }
 
-export function LoginForm({ onLoggedIn }: LoginFormProps) {
+export function LoginForm({
+  onLoggedIn,
+  authRole,
+  emailPlaceholder = 'E-mail',
+  createAccountLabel = 'Criar conta',
+}: LoginFormProps) {
   const [formError, setFormError] = useState<string | null>(null)
 
   const loginMutation = useMutation({
-    mutationFn: ({ email, password }: LoginVariables) => loginApi({ email, password }),
+    mutationFn: ({ email, password }: LoginVariables) =>
+      loginApi({ email, password, role: authRole }),
     onSuccess: (data, variables) => {
       onLoggedIn(data.access_token, data.user, variables.remember)
     },
@@ -99,7 +111,7 @@ export function LoginForm({ onLoggedIn }: LoginFormProps) {
                     type="email"
                     inputMode="email"
                     autoComplete="email"
-                    placeholder="E-mail"
+                    placeholder={emailPlaceholder}
                     value={field.state.value}
                     onChange={(event) => field.handleChange(event.target.value)}
                     onBlur={field.handleBlur}
@@ -161,7 +173,7 @@ export function LoginForm({ onLoggedIn }: LoginFormProps) {
                   name={field.name}
                   checked={field.state.value}
                   onCheckedChange={(checked) => field.handleChange(checked)}
-                  className="size-5 rounded-md border-2 border-turquoise/50 data-checked:border-turquoise data-checked:bg-turquoise"
+                  className="size-5 rounded-[5px] border-2 border-turquoise/50 data-checked:border-turquoise data-checked:bg-turquoise"
                 />
                 Lembrar de mim
               </label>
@@ -219,7 +231,7 @@ export function LoginForm({ onLoggedIn }: LoginFormProps) {
           aria-hidden="true"
           className="size-6 text-turquoise"
         />
-        Criar conta
+        {createAccountLabel}
       </Button>
     </form>
   )
