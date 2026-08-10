@@ -5,7 +5,14 @@ import {
   labelConselho,
   labelFaixa,
   labelProfissao,
+  labelRegiao,
+  normalizeRegiao,
+  opcoesRegiao,
   placeholderNumeroRegistro,
+  placeholderRegiao,
+  REGIOES_CREFITO,
+  REGIOES_CRFA,
+  REGIOES_CRP,
   REGRA_NUMERO_REGISTRO,
 } from '@/lib/cadastro-profissional'
 
@@ -19,7 +26,7 @@ const ESTADO_VALIDO: RegisterProfissionalStateSource = {
   senha: 'senha123',
   conselho: 'crp',
   numeroRegistro: '12345',
-  uf: 'SP',
+  uf: '06',
   cnpj: '12.345.678/0001-95',
   especialidades: ['tea', 'atraso_fala'],
   faixas: ['4-6', '7-10'],
@@ -42,12 +49,26 @@ describe('buildRegisterProfissionalPayload', () => {
       profession: 'psicologo',
       council_type: 'crp',
       council_number: '12345',
-      council_uf: 'SP',
+      council_region: '06',
       cnpj: '12345678000195',
       specialties: ['tea', 'atraso_fala'],
       age_groups: ['4-6', '7-10'],
       service_modes: ['presencial', 'online'],
     })
+  })
+
+  it('normaliza a região do CRP com zero à esquerda ("6" → "06")', () => {
+    const payload = buildRegisterProfissionalPayload({ ...ESTADO_VALIDO, uf: '6' })
+    expect(payload.council_region).toBe('06')
+  })
+
+  it('mantém a UF como está para conselhos que usam UF', () => {
+    const payload = buildRegisterProfissionalPayload({
+      ...ESTADO_VALIDO,
+      conselho: 'crm',
+      uf: 'SP',
+    })
+    expect(payload.council_region).toBe('SP')
   })
 
   it('CNPJ vazio vira null (opcional)', () => {
@@ -64,7 +85,7 @@ describe('buildRegisterProfissionalPayload', () => {
     })
     expect(payload.profession).toBe('outro')
     expect(payload.council_type).toBe('outro')
-    expect(payload.council_uf).toBe('')
+    expect(payload.council_region).toBe('')
   })
 
   it('CNPJ incompleto (máscara parcial) não é enviado', () => {
@@ -96,9 +117,9 @@ describe('número do registro por conselho', () => {
   it('placeholder segue o exemplo do mockup para cada conselho', () => {
     expect(placeholderNumeroRegistro('crm')).toBe('ex.: 123456')
     expect(placeholderNumeroRegistro('crp')).toBe('ex.: 12345')
-    expect(placeholderNumeroRegistro('crefito')).toBe('ex.: 12345')
-    expect(placeholderNumeroRegistro('crfa')).toBe('ex.: 12345')
-    expect(placeholderNumeroRegistro('cro')).toBe('ex.: 123456')
+    expect(placeholderNumeroRegistro('crefito')).toBe('ex.: 123456-F')
+    expect(placeholderNumeroRegistro('crfa')).toBe('ex.: 2-12345')
+    expect(placeholderNumeroRegistro('cro')).toBe('ex.: 12345')
     expect(placeholderNumeroRegistro('outro')).toBe('ex.: 123456')
   })
 
@@ -107,12 +128,57 @@ describe('número do registro por conselho', () => {
     expect(placeholderNumeroRegistro(undefined)).toBe('ex.: 123456')
   })
 
-  it('regra de dígitos: 4–6 nos conselhos padrão, Outro até 10', () => {
-    expect(REGRA_NUMERO_REGISTRO.crm).toEqual({ min: 4, max: 6 })
+  it('regra de dígitos: CRM até 7, demais 4–6, Outro até 10', () => {
+    expect(REGRA_NUMERO_REGISTRO.crm).toEqual({ min: 4, max: 7 })
     expect(REGRA_NUMERO_REGISTRO.crp).toEqual({ min: 4, max: 6 })
     expect(REGRA_NUMERO_REGISTRO.crefito).toEqual({ min: 4, max: 6 })
     expect(REGRA_NUMERO_REGISTRO.crfa).toEqual({ min: 4, max: 6 })
     expect(REGRA_NUMERO_REGISTRO.cro).toEqual({ min: 4, max: 6 })
     expect(REGRA_NUMERO_REGISTRO.outro).toEqual({ min: 4, max: 10 })
+  })
+})
+
+describe('UF/região do registro por conselho', () => {
+  it('CRP: 23 regiões com UF de referência (06 = SP)', () => {
+    expect(REGIOES_CRP).toHaveLength(23)
+    expect(REGIOES_CRP.find((opcao) => opcao.value === '06')?.label).toBe('06 (SP)')
+  })
+
+  it('CREFITO: 21 regiões com UFs de abrangência (3 = SP)', () => {
+    expect(REGIOES_CREFITO).toHaveLength(21)
+    expect(REGIOES_CREFITO.find((opcao) => opcao.value === '3')?.label).toBe('3 (SP)')
+  })
+
+  it('CRFa: 9 regiões com UFs de abrangência (2 = SP)', () => {
+    expect(REGIOES_CRFA).toHaveLength(9)
+    expect(REGIOES_CRFA.find((opcao) => opcao.value === '2')?.label).toBe('2 (SP)')
+  })
+
+  it('opcoesRegiao: UF (27) para crm/cro/outro e região para crp/crefito/crfa', () => {
+    expect(opcoesRegiao('crm')).toHaveLength(27)
+    expect(opcoesRegiao('crm')[0]).toEqual({ value: 'AC', label: 'AC' })
+    expect(opcoesRegiao(null)).toHaveLength(27)
+    expect(opcoesRegiao('crp')[0]).toEqual({ value: '01', label: '01 (DF)' })
+    expect(opcoesRegiao('crefito')[1]).toEqual({ value: '2', label: '2 (RJ)' })
+    expect(opcoesRegiao('crfa')[1]).toEqual({ value: '2', label: '2 (SP)' })
+  })
+
+  it('labelRegiao e placeholderRegiao mudam conforme o conselho', () => {
+    expect(labelRegiao('crm')).toBe('UF do registro')
+    expect(labelRegiao(null)).toBe('UF do registro')
+    expect(labelRegiao('crp')).toBe('Região do CRP')
+    expect(labelRegiao('crefito')).toBe('Região do CREFITO')
+    expect(labelRegiao('crfa')).toBe('Região do CRFa')
+    expect(placeholderRegiao('crm')).toBe('UF')
+    expect(placeholderRegiao('crp')).toBe('Região')
+  })
+
+  it('normalizeRegiao: CRP com zero à esquerda; demais conselhos mantêm o valor', () => {
+    expect(normalizeRegiao('6', 'crp')).toBe('06')
+    expect(normalizeRegiao('06', 'crp')).toBe('06')
+    expect(normalizeRegiao('SP', 'crm')).toBe('SP')
+    expect(normalizeRegiao('3', 'crefito')).toBe('3')
+    expect(normalizeRegiao('', 'crp')).toBe('')
+    expect(normalizeRegiao(null, 'crp')).toBe('')
   })
 })

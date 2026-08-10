@@ -24,18 +24,21 @@ import {
   CNPJ_MASK,
   CONSELHOS,
   FAIXAS_ETARIAS,
+  labelRegiao,
   MODALIDADES_ATENDIMENTO,
-  NUMERO_REGISTRO_MASK,
+  maxLengthNumeroRegistro,
+  numeroRegistroMask,
+  opcoesRegiao,
   PASSOS_CADASTRO_PROFISSIONAL,
   placeholderNumeroRegistro,
+  placeholderRegiao,
   REGRA_NUMERO_REGISTRO,
-  UFS,
 } from '@/lib/cadastro-profissional'
 import {
   documentoProfissionalSchema,
   MSG_CONFERE_REGISTRO,
   MSG_CONSELHO,
-  MSG_UF,
+  MSG_REGIAO,
   validateCnpj,
   validateNumeroRegistro,
 } from '@/lib/validation-profissional'
@@ -134,6 +137,11 @@ export function CadastroProfissionalAtuacaoPage() {
       form.setFieldValue('numeroRegistro', '')
       setAvisoRegistro(MSG_CONFERE_REGISTRO)
     }
+    // UF/região: se o valor atual não existe nas opções do novo conselho, limpa.
+    const ufAtual = form.state.values.uf
+    if (ufAtual && !opcoesRegiao(conselho).some((opcao) => opcao.value === ufAtual)) {
+      form.setFieldValue('uf', '')
+    }
   }
 
   return (
@@ -225,10 +233,14 @@ export function CadastroProfissionalAtuacaoPage() {
                     icon={
                       <Scroll weight="fill" aria-hidden="true" className="size-6 text-turquoise" />
                     }
-                    inputMode="numeric"
+                    inputMode={
+                      conselhoSelecionado === 'crefito' || conselhoSelecionado === 'crfa'
+                        ? 'text'
+                        : 'numeric'
+                    }
                     autoComplete="off"
-                    mask={NUMERO_REGISTRO_MASK}
-                    maxLength={10}
+                    mask={numeroRegistroMask(conselhoSelecionado)}
+                    maxLength={maxLengthNumeroRegistro(conselhoSelecionado)}
                     value={field.state.value}
                     onChange={(value) => {
                       setAvisoRegistro(null)
@@ -247,8 +259,8 @@ export function CadastroProfissionalAtuacaoPage() {
               name="uf"
               validators={{
                 onChange: () => undefined,
-                onBlur: ({ value }) => (value ? undefined : MSG_UF),
-                onSubmit: ({ value }) => (value ? undefined : MSG_UF),
+                onBlur: ({ value }) => (value ? undefined : MSG_REGIAO),
+                onSubmit: ({ value }) => (value ? undefined : MSG_REGIAO),
               }}
             >
               {(field) => (
@@ -256,10 +268,10 @@ export function CadastroProfissionalAtuacaoPage() {
                   <PillSelect
                     id={field.name}
                     name={field.name}
-                    label="UF do registro"
-                    placeholder="UF"
+                    label={labelRegiao(conselhoSelecionado)}
+                    placeholder={placeholderRegiao(conselhoSelecionado)}
                     icon={<MapPin weight="fill" aria-hidden="true" className="size-6 text-coral" />}
-                    options={UFS.map((uf) => ({ value: uf, label: uf }))}
+                    options={opcoesRegiao(conselhoSelecionado)}
                     value={field.state.value || null}
                     onValueChange={field.handleChange}
                     onBlur={field.handleBlur}

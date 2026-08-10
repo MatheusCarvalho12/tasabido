@@ -4,9 +4,11 @@ import {
   documentoProfissionalSchema,
   MSG_CNPJ,
   MSG_CONSELHO,
+  MSG_REGIAO,
   MSG_REGISTRO,
+  MSG_REGISTRO_CREFITO_FORMATO,
+  MSG_REGISTRO_CRFA_FORMATO,
   MSG_REGISTRO_CURTO,
-  MSG_UF,
   msgRegistroMaximo,
   sobreProfissionalSchema,
   validateCnpj,
@@ -33,7 +35,7 @@ describe('validação de CNPJ (cpf-cnpj-validator)', () => {
 })
 
 describe('validação do documento profissional (passo 3)', () => {
-  it('exige conselho, número do registro e UF', () => {
+  it('exige conselho, número do registro e UF/região', () => {
     const resultado = documentoProfissionalSchema.safeParse({
       conselho: '',
       numeroRegistro: '',
@@ -45,14 +47,14 @@ describe('validação do documento profissional (passo 3)', () => {
     const mensagens = issues.map((issue) => issue.message)
     expect(mensagens).toContain(MSG_CONSELHO)
     expect(mensagens).toContain(MSG_REGISTRO)
-    expect(mensagens).toContain(MSG_UF)
+    expect(mensagens).toContain(MSG_REGIAO)
   })
 
   it('aceita documento completo com CNPJ válido', () => {
     const resultado = documentoProfissionalSchema.safeParse({
       conselho: 'crp',
       numeroRegistro: '12345',
-      uf: 'SP',
+      uf: '06',
       cnpj: '12.345.678/0001-95',
     })
     expect(resultado.success).toBe(true)
@@ -73,8 +75,8 @@ describe('validação do documento profissional (passo 3)', () => {
   it('permite CNPJ vazio (opcional)', () => {
     const resultado = documentoProfissionalSchema.safeParse({
       conselho: 'crefito',
-      numeroRegistro: '9876',
-      uf: 'RJ',
+      numeroRegistro: '9876-F',
+      uf: '3',
       cnpj: '',
     })
     expect(resultado.success).toBe(true)
@@ -84,7 +86,7 @@ describe('validação do documento profissional (passo 3)', () => {
     const resultado = documentoProfissionalSchema.safeParse({
       conselho: 'crp',
       numeroRegistro: '123',
-      uf: 'SP',
+      uf: '06',
       cnpj: '',
     })
     expect(resultado.success).toBe(false)
@@ -92,31 +94,31 @@ describe('validação do documento profissional (passo 3)', () => {
     expect(mensagens).toContain(MSG_REGISTRO_CURTO)
   })
 
-  it('rejeita número longo para CRM (máx 6) mas aceita o mesmo número em Outro (máx 10)', () => {
+  it('rejeita número longo para CRM (máx 7) mas aceita o mesmo número em Outro (máx 10)', () => {
     const crmLongo = documentoProfissionalSchema.safeParse({
       conselho: 'crm',
-      numeroRegistro: '1234567',
+      numeroRegistro: '12345678',
       uf: 'SP',
       cnpj: '',
     })
     expect(crmLongo.success).toBe(false)
     const mensagens = (crmLongo.error?.issues ?? []).map((issue) => issue.message)
-    expect(mensagens).toContain(msgRegistroMaximo(6, 'crm'))
+    expect(mensagens).toContain(msgRegistroMaximo(7, 'crm'))
 
     const outroOk = documentoProfissionalSchema.safeParse({
       conselho: 'outro',
-      numeroRegistro: '1234567',
+      numeroRegistro: '12345678',
       uf: 'SP',
       cnpj: '',
     })
     expect(outroOk.success).toBe(true)
   })
 
-  it('aceita os extremos de cada regra (4 e 6 dígitos; Outro até 10)', () => {
+  it('aceita os extremos de cada regra (4–7 no CRM; 4–6 demais; Outro até 10)', () => {
     expect(
       documentoProfissionalSchema.safeParse({
         conselho: 'crm',
-        numeroRegistro: '1234',
+        numeroRegistro: '1234567',
         uf: 'SP',
         cnpj: '',
       }).success,
@@ -138,6 +140,33 @@ describe('validação do documento profissional (passo 3)', () => {
       }).success,
     ).toBe(true)
   })
+
+  it('aceita CREFITO com sufixo -F/-TO e CRFa com formato região-número', () => {
+    expect(
+      documentoProfissionalSchema.safeParse({
+        conselho: 'crefito',
+        numeroRegistro: '123456-F',
+        uf: '3',
+        cnpj: '',
+      }).success,
+    ).toBe(true)
+    expect(
+      documentoProfissionalSchema.safeParse({
+        conselho: 'crefito',
+        numeroRegistro: '1234-TO',
+        uf: '3',
+        cnpj: '',
+      }).success,
+    ).toBe(true)
+    expect(
+      documentoProfissionalSchema.safeParse({
+        conselho: 'crfa',
+        numeroRegistro: '2-12345',
+        uf: '2',
+        cnpj: '',
+      }).success,
+    ).toBe(true)
+  })
 })
 
 describe('validação do número do registro (regra por conselho)', () => {
@@ -152,18 +181,20 @@ describe('validação do número do registro (regra por conselho)', () => {
     }
   })
 
-  it('aceita 4–6 dígitos nos conselhos padrão', () => {
+  it('aceita 4–6 dígitos nos conselhos padrão e até 7 no CRM', () => {
     expect(validateNumeroRegistro('1234', 'crm')).toBeUndefined()
     expect(validateNumeroRegistro('123456', 'crm')).toBeUndefined()
+    expect(validateNumeroRegistro('1234567', 'crm')).toBeUndefined()
     expect(validateNumeroRegistro('12345', 'crp')).toBeUndefined()
     expect(validateNumeroRegistro('12345', 'crefito')).toBeUndefined()
     expect(validateNumeroRegistro('12345', 'crfa')).toBeUndefined()
     expect(validateNumeroRegistro('123456', 'cro')).toBeUndefined()
   })
 
-  it('rejeita mais de 6 dígitos nos conselhos padrão, citando o conselho', () => {
-    expect(validateNumeroRegistro('1234567', 'crm')).toBe(msgRegistroMaximo(6, 'crm'))
+  it('rejeita mais dígitos do que a regra, citando o conselho (CRM máx 7)', () => {
+    expect(validateNumeroRegistro('12345678', 'crm')).toBe(msgRegistroMaximo(7, 'crm'))
     expect(validateNumeroRegistro('1234567', 'crfa')).toBe(msgRegistroMaximo(6, 'crfa'))
+    expect(validateNumeroRegistro('1234567', 'crefito')).toBe(msgRegistroMaximo(6, 'crefito'))
   })
 
   it('"Outro" aceita até 10 dígitos', () => {
@@ -171,9 +202,56 @@ describe('validação do número do registro (regra por conselho)', () => {
     expect(validateNumeroRegistro('12345678901', 'outro')).toBe(msgRegistroMaximo(10, 'outro'))
   })
 
-  it('sem conselho usa a regra padrão (4–6)', () => {
+  it('sem conselho usa a regra padrão (4–7)', () => {
     expect(validateNumeroRegistro('1234')).toBeUndefined()
-    expect(validateNumeroRegistro('1234567')).toBe(msgRegistroMaximo(6))
+    expect(validateNumeroRegistro('1234567')).toBeUndefined()
+    expect(validateNumeroRegistro('12345678')).toBe(msgRegistroMaximo(7))
+  })
+})
+
+describe('validação do CREFITO (sufixo -F/-TO)', () => {
+  it('aceita número puro com 4–6 dígitos', () => {
+    expect(validateNumeroRegistro('1234', 'crefito')).toBeUndefined()
+    expect(validateNumeroRegistro('123456', 'crefito')).toBeUndefined()
+  })
+
+  it('aceita sufixo -F e -TO', () => {
+    expect(validateNumeroRegistro('123456-F', 'crefito')).toBeUndefined()
+    expect(validateNumeroRegistro('12345-F', 'crefito')).toBeUndefined()
+    expect(validateNumeroRegistro('1234-TO', 'crefito')).toBeUndefined()
+  })
+
+  it('rejeita sufixo errado ou hífen sozinho', () => {
+    expect(validateNumeroRegistro('123456-FO', 'crefito')).toBe(MSG_REGISTRO_CREFITO_FORMATO)
+    expect(validateNumeroRegistro('12345-T', 'crefito')).toBe(MSG_REGISTRO_CREFITO_FORMATO)
+    expect(validateNumeroRegistro('12345-', 'crefito')).toBe(MSG_REGISTRO_CREFITO_FORMATO)
+    expect(validateNumeroRegistro('12345-X', 'crefito')).toBe(MSG_REGISTRO_CREFITO_FORMATO)
+  })
+
+  it('rejeita quantidade de dígitos fora da regra mesmo com sufixo', () => {
+    expect(validateNumeroRegistro('123-F', 'crefito')).toBe(MSG_REGISTRO_CURTO)
+    expect(validateNumeroRegistro('1234567-F', 'crefito')).toBe(msgRegistroMaximo(6, 'crefito'))
+  })
+})
+
+describe('validação do CRFa (região-número ou número puro)', () => {
+  it('aceita número puro com 4–6 dígitos', () => {
+    expect(validateNumeroRegistro('1234', 'crfa')).toBeUndefined()
+    expect(validateNumeroRegistro('123456', 'crfa')).toBeUndefined()
+  })
+
+  it('aceita formato região-número (R-NNNNN)', () => {
+    expect(validateNumeroRegistro('2-12345', 'crfa')).toBeUndefined()
+    expect(validateNumeroRegistro('9-123456', 'crfa')).toBeUndefined()
+    expect(validateNumeroRegistro('12-345678', 'crfa')).toBeUndefined()
+  })
+
+  it('rejeita hífen no lugar errado ou quantidade fora da regra', () => {
+    expect(validateNumeroRegistro('12345-2', 'crfa')).toBe(MSG_REGISTRO_CRFA_FORMATO)
+    expect(validateNumeroRegistro('2-123', 'crfa')).toBe(MSG_REGISTRO_CRFA_FORMATO)
+    expect(validateNumeroRegistro('2-12', 'crfa')).toBe(MSG_REGISTRO_CURTO)
+    expect(validateNumeroRegistro('1234567', 'crfa')).toBe(msgRegistroMaximo(6, 'crfa'))
+    expect(validateNumeroRegistro('2-1234567', 'crfa')).toBe(msgRegistroMaximo(6, 'crfa'))
   })
 })
 

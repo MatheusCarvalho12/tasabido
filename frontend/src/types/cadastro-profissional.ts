@@ -33,7 +33,8 @@ export interface RegisterProfessionalRequest {
   profession: Profissao
   council_type: Conselho
   council_number: string
-  council_uf: string
+  /** UF (crm/cro/outro) ou região numérica (crp/crefito/crfa), conforme o conselho. */
+  council_region: string
   /** CNPJ opcional; apenas dígitos (14) ou null quando não informado. */
   cnpj: string | null
   /** Especialidades: ids padrão ('tea', 'tdah', …) ou textos customizados. */
