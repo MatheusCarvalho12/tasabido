@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any, cast
 
@@ -375,3 +375,116 @@ def test_me_invalid_token_401(client: TestClient) -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Não autenticado"
+
+
+# --- Validações do contrato único (mesmas regras do front) ---
+
+
+def _register_payload(**extra: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": "Ana Souza",
+        "email": "ana@example.com",
+        "password": "senha-segura-123",
+        "family_role": "mamae",
+    }
+    payload.update(extra)
+    return payload
+
+
+def test_register_password_without_number_422(client: TestClient) -> None:
+    response = client.post("/auth/register", json=_register_payload(password="somenteletras"))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "A senha precisa ter pelo menos 8 caracteres, com letra e número"
+    )
+
+
+def test_register_password_short_422(client: TestClient) -> None:
+    response = client.post("/auth/register", json=_register_payload(password="abc12"))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "A senha precisa ter pelo menos 8 caracteres, com letra e número"
+    )
+
+
+def test_register_password_letters_and_digits_201(client: TestClient) -> None:
+    body = _register(client, email="senhaok@example.com", password="abc12345")
+
+    assert body["user"]["email"] == "senhaok@example.com"
+
+
+def test_register_name_with_digits_422(client: TestClient) -> None:
+    response = client.post("/auth/register", json=_register_payload(name="Ana 123"))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O nome só pode conter letras e espaços"
+
+
+def test_register_short_name_422(client: TestClient) -> None:
+    response = client.post("/auth/register", json=_register_payload(name="A"))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O nome precisa ter pelo menos 2 letras"
+
+
+def test_register_invalid_phone_bad_ddd_422(client: TestClient) -> None:
+    response = client.post("/auth/register", json=_register_payload(phone="(00) 98765-4321"))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Telefone inválido"
+
+
+def test_register_invalid_phone_gibberish_422(client: TestClient) -> None:
+    response = client.post("/auth/register", json=_register_payload(phone="abc"))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Telefone inválido"
+
+
+def test_register_formatted_phone_201(client: TestClient) -> None:
+    body = _register(client, email="telefoneok@example.com", phone="(11) 98765-4321")
+
+    assert body["user"]["phone"] == "(11) 98765-4321"
+
+
+def test_register_future_birth_date_422(client: TestClient) -> None:
+    future = (date.today() + timedelta(days=1)).isoformat()
+    response = client.post("/auth/register", json=_register_payload(birth_date=future))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "A data de nascimento não pode estar no futuro"
+
+
+def test_register_birth_date_130_years_422(client: TestClient) -> None:
+    too_old = (date.today() - timedelta(days=365 * 130)).isoformat()
+    response = client.post("/auth/register", json=_register_payload(birth_date=too_old))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "A data de nascimento indica mais de 120 anos"
+
+
+def test_register_valid_birth_date_201(client: TestClient) -> None:
+    valid = (date.today() - timedelta(days=365 * 30)).isoformat()
+    body = _register(client, email="datanasc@example.com", birth_date=valid)
+
+    assert body["user"]["birth_date"] == valid
+
+
+def test_register_child_future_birth_date_422(client: TestClient) -> None:
+    future = (date.today() + timedelta(days=1)).isoformat()
+    response = client.post(
+        "/auth/register",
+        json=_register_payload(children=[{"name": "Bento", "birth_date": future}]),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "A data de nascimento não pode estar no futuro"
+
+
+def test_register_child_short_name_422(client: TestClient) -> None:
+    response = client.post("/auth/register", json=_register_payload(children=[{"name": "A"}]))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O nome da criança precisa ter pelo menos 2 letras"
