@@ -1,4 +1,4 @@
-import { CalendarBlank, Envelope, IdentificationCard, Phone, User } from '@phosphor-icons/react'
+import { Envelope, IdentificationCard, Phone, User } from '@phosphor-icons/react'
 import type { MaskOptions } from '@react-input/mask'
 import { useForm, useStore } from '@tanstack/react-form'
 import { useNavigate } from '@tanstack/react-router'
@@ -6,13 +6,14 @@ import { useNavigate } from '@tanstack/react-router'
 import { PasswordField } from '@/components/auth/PasswordField'
 import { CadastroTextField } from '@/components/cadastro/CadastroTextField'
 import { CadastroWizardLayout } from '@/components/cadastro/CadastroWizardLayout'
+import { DateField } from '@/components/cadastro/DateField'
 import { Field, FieldContent, FieldError, FieldLabel } from '@/components/ui/field'
 import { CPF_MASK } from '@/lib/cadastro'
 import {
   sobreVoceSchema,
   validateCpf,
+  validateDataNascimento,
   validateEmail,
-  validateIdade,
   validateName,
   validatePassword,
   validatePasswordMatch,
@@ -21,9 +22,7 @@ import {
 import { useCadastroStore } from '@/stores/useCadastroStore'
 
 const GRID = 'col-span-12'
-const GRID_CPF = 'col-span-12 lg:col-span-8'
-const GRID_IDADE = 'col-span-12 lg:col-span-4'
-const GRID_SENHA = 'col-span-12 lg:col-span-6'
+const GRID_METADE = 'col-span-12 lg:col-span-6'
 
 /**
  * Máscara dinâmica do telefone: (XX) XXXX-XXXX para fixo (10 dígitos) e
@@ -40,9 +39,9 @@ const TELEFONE_MASK: MaskOptions = {
 }
 
 /**
- * Passo 2 do cadastro familiar — "Sobre você". Formulário em grid:
- * nome (total), CPF 2/3 + idade 1/3, telefone (total), e-mail (total),
- * senha + confirmação 1/2 — 5 linhas no desktop.
+ * Passo 2 do cadastro familiar — "Sobre você". Formulário em grid de 12 colunas
+ * no desktop (1 coluna no mobile): nome (total), CPF 1/2 + data de nascimento
+ * 1/2, telefone (total), e-mail (total), senha + confirmação 1/2.
  */
 export function CadastroSobrePage() {
   const navigate = useNavigate()
@@ -56,7 +55,7 @@ export function CadastroSobrePage() {
         cpf: state.cpf,
         telefone: state.telefone,
         email: state.email,
-        idade: state.idade,
+        dataNascimento: state.dataNascimento,
         senha: state.senha,
         confirmarSenha: state.senha,
       }
@@ -67,7 +66,7 @@ export function CadastroSobrePage() {
         cpf: value.cpf,
         telefone: value.telefone,
         email: value.email,
-        idade: value.idade,
+        dataNascimento: value.dataNascimento,
         senha: value.senha,
       })
       void navigate({ to: '/cadastro/familia' })
@@ -111,7 +110,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} order-1 lg:order-none`}>
+            <div className={GRID}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -139,7 +138,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_CPF} order-2`}>
+            <div className={`${GRID} ${GRID_METADE}`}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -166,6 +165,30 @@ export function CadastroSobrePage() {
         </form.Field>
 
         <form.Field
+          name="dataNascimento"
+          validators={{
+            onChange: ({ value }) => (value ? validateDataNascimento(value) : undefined),
+            onBlur: ({ value }) => validateDataNascimento(value),
+            onSubmit: ({ value }) => validateDataNascimento(value),
+          }}
+        >
+          {(field) => (
+            <div className={`${GRID} ${GRID_METADE}`}>
+              <DateField
+                id={field.name}
+                name={field.name}
+                label="Data de nascimento"
+                value={field.state.value}
+                onChange={field.handleChange}
+                onBlur={field.handleBlur}
+                hasError={field.state.meta.errors.length > 0}
+                error={field.state.meta.errors[0]}
+              />
+            </div>
+          )}
+        </form.Field>
+
+        <form.Field
           name="telefone"
           validators={{
             onChange: ({ value }) =>
@@ -175,7 +198,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} order-4`}>
+            <div className={GRID}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -204,7 +227,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} order-5`}>
+            <div className={GRID}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -227,35 +250,6 @@ export function CadastroSobrePage() {
         </form.Field>
 
         <form.Field
-          name="idade"
-          validators={{
-            onChange: ({ value }) => (value ? validateIdade(value) : undefined),
-            onBlur: ({ value }) => validateIdade(value),
-            onSubmit: ({ value }) => validateIdade(value),
-          }}
-        >
-          {(field) => (
-            <div className={`${GRID} ${GRID_IDADE} order-3`}>
-              <CadastroTextField
-                id={field.name}
-                name={field.name}
-                label="Idade"
-                placeholder="Idade"
-                icon={
-                  <CalendarBlank weight="fill" aria-hidden="true" className="size-6 text-purple" />
-                }
-                inputMode="numeric"
-                value={field.state.value}
-                onChange={field.handleChange}
-                onBlur={field.handleBlur}
-                hasError={field.state.meta.errors.length > 0}
-                error={field.state.meta.errors[0]}
-              />
-            </div>
-          )}
-        </form.Field>
-
-        <form.Field
           name="senha"
           validators={{
             onChange: ({ value }) => (value ? validatePassword(value) : undefined),
@@ -264,7 +258,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_SENHA} order-6`}>
+            <div className={`${GRID} ${GRID_METADE}`}>
               <Field data-invalid={field.state.meta.errors.length > 0}>
                 <FieldLabel htmlFor={field.name} className="sr-only">
                   Senha
@@ -299,7 +293,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_SENHA} order-7`}>
+            <div className={`${GRID} ${GRID_METADE}`}>
               <Field data-invalid={field.state.meta.errors.length > 0}>
                 <FieldLabel htmlFor={field.name} className="sr-only">
                   Confirmar senha

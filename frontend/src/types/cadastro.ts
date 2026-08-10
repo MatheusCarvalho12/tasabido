@@ -39,7 +39,7 @@ export interface RegisterRequest {
   family_role: PapelFamiliar
   cpf: string
   phone: string
-  birth_date: null
+  birth_date: string | null
   children: RegisterChildRequest[]
   support_network: string[]
 }

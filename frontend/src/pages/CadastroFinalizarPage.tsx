@@ -55,7 +55,7 @@ export function CadastroFinalizarPage() {
       cpf: wizard.cpf,
       telefone: wizard.telefone,
       email: wizard.email,
-      idade: wizard.idade,
+      dataNascimento: wizard.dataNascimento,
       senha: wizard.senha,
     }).success &&
     suaFamiliaSchema.safeParse({

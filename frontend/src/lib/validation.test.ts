@@ -32,7 +32,7 @@ const SOBRE_VALIDO = {
   cpf: '295.379.955-93',
   telefone: '(11) 98765-4321',
   email: 'ana@exemplo.com',
-  idade: '34',
+  dataNascimento: '15/08/1990',
   senha: 'senha123',
   confirmarSenha: 'senha123',
 }
@@ -210,6 +210,32 @@ describe('schema do passo 2 — Sobre você', () => {
       expect(resultado.error.issues[0]?.message).toBe(MSG_CPF)
     }
   })
+
+  it('rejeita data de nascimento futura no passo completo', () => {
+    const resultado = sobreVoceSchema.safeParse({
+      ...SOBRE_VALIDO,
+      dataNascimento: '12/12/2099',
+    })
+    expect(resultado.success).toBe(false)
+    if (!resultado.success) {
+      expect(resultado.error.issues[0]?.message).toBe(MSG_DATA_FUTURA)
+    }
+  })
+
+  it('rejeita data de nascimento com mais de 120 anos no passo completo', () => {
+    const resultado = sobreVoceSchema.safeParse({
+      ...SOBRE_VALIDO,
+      dataNascimento: '01/01/1900',
+    })
+    expect(resultado.success).toBe(false)
+    if (!resultado.success) {
+      expect(resultado.error.issues[0]?.message).toBe(MSG_DATA_ANTIGA)
+    }
+  })
+
+  it('aceita data de nascimento válida no passo completo', () => {
+    expect(sobreVoceSchema.safeParse(SOBRE_VALIDO).success).toBe(true)
+  })
 })
 
 describe('schema do passo 3 — Sua família', () => {
@@ -244,7 +270,7 @@ describe('schema do passo 2 sem confirmação (usado no passo 4)', () => {
       cpf: SOBRE_VALIDO.cpf,
       telefone: SOBRE_VALIDO.telefone,
       email: SOBRE_VALIDO.email,
-      idade: SOBRE_VALIDO.idade,
+      dataNascimento: SOBRE_VALIDO.dataNascimento,
       senha: SOBRE_VALIDO.senha,
     })
     expect(resultado.success).toBe(true)

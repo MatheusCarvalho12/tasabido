@@ -69,33 +69,6 @@ const idadeSchema = z
   .trim()
   .refine((value) => value === '' || validateIdade(value) === undefined, MSG_IDADE)
 
-/** Senha: mínimo 8 caracteres com pelo menos 1 letra e 1 número. */
-const senhaSchema = z
-  .string()
-  .min(8, MSG_SENHA)
-  .regex(/^(?=.*[A-Za-z])(?=.*\d).{8,}$/, MSG_SENHA)
-
-/** Passo 2 — "Sobre você" (campos, sem a confirmação entre campos). */
-const sobreVoceBaseSchema = z.object({
-  nome: nomeCompletoSchema,
-  cpf: cpfSchema,
-  telefone: telefoneSchema,
-  email: emailSchema,
-  idade: idadeSchema,
-  senha: senhaSchema,
-})
-
-export const sobreVoceSchema = sobreVoceBaseSchema
-  .extend({ confirmarSenha: z.string().trim() })
-  .superRefine((dados, ctx) => {
-    if (dados.senha && dados.confirmarSenha !== dados.senha) {
-      ctx.addIssue({ code: 'custom', path: ['confirmarSenha'], message: MSG_SENHAS })
-    }
-  })
-
-/** Passo 2 sem a confirmação — usado no passo 4 com os dados salvos da store. */
-export const sobreVoceSemConfirmacaoSchema = sobreVoceBaseSchema
-
 /** Data de nascimento: opcional; quando preenchida, válida, não futura e até 120 anos. */
 export function validateDataNascimento(value: string): string | undefined {
   const data = value.trim()
@@ -127,6 +100,33 @@ const dataNascimentoSchema = z
     (value) => value === '' || calcAge(parseBrDate(value) ?? new Date(0)) <= 120,
     MSG_DATA_ANTIGA,
   )
+
+/** Senha: mínimo 8 caracteres com pelo menos 1 letra e 1 número. */
+const senhaSchema = z
+  .string()
+  .min(8, MSG_SENHA)
+  .regex(/^(?=.*[A-Za-z])(?=.*\d).{8,}$/, MSG_SENHA)
+
+/** Passo 2 — "Sobre você" (campos, sem a confirmação entre campos). */
+const sobreVoceBaseSchema = z.object({
+  nome: nomeCompletoSchema,
+  cpf: cpfSchema,
+  telefone: telefoneSchema,
+  email: emailSchema,
+  dataNascimento: dataNascimentoSchema,
+  senha: senhaSchema,
+})
+
+export const sobreVoceSchema = sobreVoceBaseSchema
+  .extend({ confirmarSenha: z.string().trim() })
+  .superRefine((dados, ctx) => {
+    if (dados.senha && dados.confirmarSenha !== dados.senha) {
+      ctx.addIssue({ code: 'custom', path: ['confirmarSenha'], message: MSG_SENHAS })
+    }
+  })
+
+/** Passo 2 sem a confirmação — usado no passo 4 com os dados salvos da store. */
+export const sobreVoceSemConfirmacaoSchema = sobreVoceBaseSchema
 
 const nomeCriancaSchema = z
   .string()

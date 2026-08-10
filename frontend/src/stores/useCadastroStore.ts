@@ -10,13 +10,13 @@ interface CadastroState {
   cpf: string
   telefone: string
   email: string
-  idade: string
+  dataNascimento: string
   senha: string
   crianca: Crianca
   redeApoio: PapelFamiliar[]
   setPapel: (papel: PapelFamiliar) => void
   setSobre: (
-    sobre: Pick<CadastroState, 'nome' | 'cpf' | 'telefone' | 'email' | 'idade' | 'senha'>,
+    sobre: Pick<CadastroState, 'nome' | 'cpf' | 'telefone' | 'email' | 'dataNascimento' | 'senha'>,
   ) => void
   setCrianca: (crianca: Partial<Crianca>) => void
   setRedeApoio: (redeApoio: PapelFamiliar[]) => void
@@ -44,7 +44,7 @@ export const useCadastroStore = create<CadastroState>()(
       cpf: '',
       telefone: '',
       email: '',
-      idade: '',
+      dataNascimento: '',
       senha: '',
       crianca: { ...DEFAULT_CRIANCA },
       redeApoio: [],
@@ -59,7 +59,7 @@ export const useCadastroStore = create<CadastroState>()(
           cpf: '',
           telefone: '',
           email: '',
-          idade: '',
+          dataNascimento: '',
           senha: '',
           crianca: { ...DEFAULT_CRIANCA },
           redeApoio: [],

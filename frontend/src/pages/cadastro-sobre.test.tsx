@@ -47,7 +47,7 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
       cpf: '',
       telefone: '',
       email: '',
-      idade: '',
+      dataNascimento: '',
       senha: '',
       crianca: { nome: '', cpf: '', dataNascimento: '', idade: '', peso: '', condicoes: [] },
       redeApoio: [],
@@ -62,9 +62,9 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
     for (const placeholder of [
       'Nome completo',
       'CPF',
+      'dd/mm/aaaa',
       'Telefone',
       'E-mail',
-      'Idade',
       'Senha',
       'Confirmar senha',
     ]) {
@@ -81,13 +81,23 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
 
     await user.type(screen.getByPlaceholderText('Nome completo'), 'Ana Souza')
     await user.type(screen.getByPlaceholderText('CPF'), '295.379.955-93')
+    await user.type(screen.getByPlaceholderText('dd/mm/aaaa'), '15/08/1990')
     await user.type(screen.getByPlaceholderText('Telefone'), '(11) 98765-4321')
     await user.type(screen.getByPlaceholderText('E-mail'), 'ana@exemplo.com')
-    await user.type(screen.getByPlaceholderText('Idade'), '34')
     await user.type(screen.getByPlaceholderText('Senha'), 'senha123')
     await user.type(screen.getByPlaceholderText('Confirmar senha'), 'senha123')
 
     expect(continuar).toBeEnabled()
+  })
+
+  it('rejeita data de nascimento no futuro com a mensagem humanizada', async () => {
+    const user = userEvent.setup()
+    await renderSobrePage()
+
+    await user.type(screen.getByPlaceholderText('dd/mm/aaaa'), '12/12/2099')
+    await user.click(screen.getByPlaceholderText('Nome completo'))
+
+    expect(screen.getByText('Essa data não pode estar no futuro')).toBeInTheDocument()
   })
 
   it('mostra os erros humanizados ao sair dos campos inválidos', async () => {
@@ -138,9 +148,9 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
 
     await user.type(screen.getByPlaceholderText('Nome completo'), 'Ana Souza')
     await user.type(screen.getByPlaceholderText('CPF'), '295.379.955-93')
+    await user.type(screen.getByPlaceholderText('dd/mm/aaaa'), '15/08/1990')
     await user.type(screen.getByPlaceholderText('Telefone'), '(11) 98765-4321')
     await user.type(screen.getByPlaceholderText('E-mail'), 'ana@exemplo.com')
-    await user.type(screen.getByPlaceholderText('Idade'), '34')
     await user.type(screen.getByPlaceholderText('Senha'), 'senha123')
     await user.type(screen.getByPlaceholderText('Confirmar senha'), 'senha123')
     await user.click(screen.getByRole('button', { name: /continuar/i }))
@@ -150,7 +160,7 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
     expect(state.cpf).toBe('295.379.955-93')
     expect(state.telefone).toBe('(11) 98765-4321')
     expect(state.email).toBe('ana@exemplo.com')
-    expect(state.idade).toBe('34')
+    expect(state.dataNascimento).toBe('15/08/1990')
     expect(state.senha).toBe('senha123')
     expect(router.state.location.pathname).toBe('/cadastro/familia')
     expect(screen.getByText('Sua família')).toBeInTheDocument()

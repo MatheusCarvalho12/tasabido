@@ -97,12 +97,13 @@ export function maskBrDate(raw: string): string {
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
 }
 
-interface RegisterStateSource {
+export interface RegisterStateSource {
   papel: PapelFamiliar | null
   nome: string
   cpf: string
   telefone: string
   email: string
+  dataNascimento: string
   senha: string
   crianca: {
     nome: string
@@ -127,7 +128,7 @@ export function buildRegisterPayload(state: RegisterStateSource): RegisterReques
     family_role: state.papel ?? 'outro-familiar',
     cpf: state.cpf.trim(),
     phone: state.telefone.trim(),
-    birth_date: null,
+    birth_date: toIsoDate(state.dataNascimento),
     children: [
       {
         name: state.crianca.nome.trim(),
