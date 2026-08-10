@@ -1,95 +1,118 @@
 # Tá Sabido
 
-## FRONT
+<table>
+<tbody>
+<tr>
+<td valign="top">
 
-| Tecnologia | Versão |
-| --- | ---: |
-| **Runtime e build** | |
-| React | 19.2.8 |
-| react-dom | 19.2.8 |
-| TypeScript | 7.0.2 |
-| @vitejs/plugin-react | 6.0.5 |
-| babel-plugin-react-compiler | 1.0.0 |
-| Node.js LTS (Krypton) | 24.19.0 |
-| pnpm | 11.21.0 |
-| Vite | 8.2.1 |
-| **Rotas, dados e contratos** | |
-| @tanstack/react-router | 1.170.25 |
-| @tanstack/react-query | 5.101.4 |
-| @tanstack/react-form | 1.33.4 |
-| Zod | 4.4.3 |
-| @hey-api/openapi-ts | 0.99.0 |
-| @hey-api/client-fetch | 0.13.1 |
-| @tanstack/react-table | 9.1.2 |
-| @tanstack/react-virtual | 3.14.9 |
-| Zustand | 5.0.14 |
-| Zod plugins: cpf-cnpj-validator | 2.1.2 |
-| @react-input/mask | 2.0.4 |
-| libphonenumber-js | 1.13.10 |
-| **UI, ícones e motion** | |
-| @base-ui/react | 1.7.0 |
-| shadcn CLI | 4.16.2 |
-| Tailwind CSS | 4.3.3 |
-| @tailwindcss/vite | 4.3.3 |
-| Motion | 13.0.0 |
-| @phosphor-icons/react | 2.1.10 |
-| @fontsource-variable/baloo-2 | 5.3.0 |
-| react-day-picker | 10.0.1 |
-| **Gráficos e 3D** | |
-| Nivo | 0.99.0 |
-| @react-three/fiber | 9.7.0 |
-| @react-three/drei | 10.7.8 |
-| three | 0.185.1 |
-| @types/three | 0.185.4 |
-| @splinetool/react-spline | 4.1.0 |
-| @splinetool/runtime | 1.12.98 |
-| **Testes e qualidade** | |
-| Vitest | 4.1.10 |
-| @testing-library/react | 16.3.2 |
-| @testing-library/user-event | 14.6.3 |
-| @testing-library/jest-dom | 7.0.1 |
-| @playwright/test | 1.62.1 |
-| @axe-core/playwright | 4.12.1 |
-| react-doctor | 0.9.11 |
-| Biome | 2.5.7 |
-| @tanstack/react-router-devtools | 1.167.1 |
-| @tanstack/react-query-devtools | 5.101.4 |
-| **Tipos** | |
-| @types/react | 19.2.18 |
-| @types/react-dom | 19.2.4 |
-| @types/node | 24.13.3 |
-| **Observabilidade** | |
-| @sentry/react | 10.69.0 |
+<h3>FRONT</h3>
 
-## BACK
+<table>
+<thead>
+<tr><th align="left">Tecnologia</th><th align="right">Versão</th></tr>
+</thead>
+<tbody>
+<tr><td colspan="2"><strong>Runtime e build</strong></td></tr>
+<tr><td align="left">React</td><td align="right">19.2.8</td></tr>
+<tr><td align="left">react-dom</td><td align="right">19.2.8</td></tr>
+<tr><td align="left">TypeScript</td><td align="right">7.0.2</td></tr>
+<tr><td align="left">@vitejs/plugin-react</td><td align="right">6.0.5</td></tr>
+<tr><td align="left">babel-plugin-react-compiler</td><td align="right">1.0.0</td></tr>
+<tr><td align="left">Node.js LTS (Krypton)</td><td align="right">24.19.0</td></tr>
+<tr><td align="left">pnpm</td><td align="right">11.21.0</td></tr>
+<tr><td align="left">Vite</td><td align="right">8.2.1</td></tr>
+<tr><td colspan="2"><strong>Rotas, dados e contratos</strong></td></tr>
+<tr><td align="left">@tanstack/react-router</td><td align="right">1.170.25</td></tr>
+<tr><td align="left">@tanstack/react-query</td><td align="right">5.101.4</td></tr>
+<tr><td align="left">@tanstack/react-form</td><td align="right">1.33.4</td></tr>
+<tr><td align="left">Zod</td><td align="right">4.4.3</td></tr>
+<tr><td align="left">@hey-api/openapi-ts</td><td align="right">0.99.0</td></tr>
+<tr><td align="left">@hey-api/client-fetch</td><td align="right">0.13.1</td></tr>
+<tr><td align="left">@tanstack/react-table</td><td align="right">9.1.2</td></tr>
+<tr><td align="left">@tanstack/react-virtual</td><td align="right">3.14.9</td></tr>
+<tr><td align="left">Zustand</td><td align="right">5.0.14</td></tr>
+<tr><td align="left">Zod plugins: cpf-cnpj-validator</td><td align="right">2.1.2</td></tr>
+<tr><td align="left">@react-input/mask</td><td align="right">2.0.4</td></tr>
+<tr><td align="left">libphonenumber-js</td><td align="right">1.13.10</td></tr>
+<tr><td colspan="2"><strong>UI, ícones e motion</strong></td></tr>
+<tr><td align="left">@base-ui/react</td><td align="right">1.7.0</td></tr>
+<tr><td align="left">shadcn CLI</td><td align="right">4.16.2</td></tr>
+<tr><td align="left">Tailwind CSS</td><td align="right">4.3.3</td></tr>
+<tr><td align="left">@tailwindcss/vite</td><td align="right">4.3.3</td></tr>
+<tr><td align="left">Motion</td><td align="right">13.0.0</td></tr>
+<tr><td align="left">@phosphor-icons/react</td><td align="right">2.1.10</td></tr>
+<tr><td align="left">@fontsource-variable/baloo-2</td><td align="right">5.3.0</td></tr>
+<tr><td align="left">react-day-picker</td><td align="right">10.0.1</td></tr>
+<tr><td colspan="2"><strong>Gráficos e 3D</strong></td></tr>
+<tr><td align="left">Nivo</td><td align="right">0.99.0</td></tr>
+<tr><td align="left">@react-three/fiber</td><td align="right">9.7.0</td></tr>
+<tr><td align="left">@react-three/drei</td><td align="right">10.7.8</td></tr>
+<tr><td align="left">three</td><td align="right">0.185.1</td></tr>
+<tr><td align="left">@types/three</td><td align="right">0.185.4</td></tr>
+<tr><td align="left">@splinetool/react-spline</td><td align="right">4.1.0</td></tr>
+<tr><td align="left">@splinetool/runtime</td><td align="right">1.12.98</td></tr>
+<tr><td colspan="2"><strong>Testes e qualidade</strong></td></tr>
+<tr><td align="left">Vitest</td><td align="right">4.1.10</td></tr>
+<tr><td align="left">@testing-library/react</td><td align="right">16.3.2</td></tr>
+<tr><td align="left">@testing-library/user-event</td><td align="right">14.6.3</td></tr>
+<tr><td align="left">@testing-library/jest-dom</td><td align="right">7.0.1</td></tr>
+<tr><td align="left">@playwright/test</td><td align="right">1.62.1</td></tr>
+<tr><td align="left">@axe-core/playwright</td><td align="right">4.12.1</td></tr>
+<tr><td align="left">react-doctor</td><td align="right">0.9.11</td></tr>
+<tr><td align="left">Biome</td><td align="right">2.5.7</td></tr>
+<tr><td align="left">@tanstack/react-router-devtools</td><td align="right">1.167.1</td></tr>
+<tr><td align="left">@tanstack/react-query-devtools</td><td align="right">5.101.4</td></tr>
+<tr><td colspan="2"><strong>Tipos</strong></td></tr>
+<tr><td align="left">@types/react</td><td align="right">19.2.18</td></tr>
+<tr><td align="left">@types/react-dom</td><td align="right">19.2.4</td></tr>
+<tr><td align="left">@types/node</td><td align="right">24.13.3</td></tr>
+<tr><td colspan="2"><strong>Observabilidade</strong></td></tr>
+<tr><td align="left">@sentry/react</td><td align="right">10.69.0</td></tr>
+</tbody>
+</table>
 
-| Tecnologia | Versão |
-| --- | ---: |
-| **Runtime e API** | |
-| Python | 3.14.7 |
-| uv | 0.12.3 |
-| FastAPI[standard] | 0.141.1 |
-| Pydantic | 2.13.4 |
-| pydantic-settings | 2.15.0 |
-| HTTPX | 0.28.1 |
-| **Banco e dados** | |
-| PostgreSQL | 18.4 |
-| SQLAlchemy | 2.0.51 |
-| Alembic | 1.19.1 |
-| Psycopg | 3.3.4 |
-| **Auth e segurança** | |
-| pwdlib (Argon2) | 0.3.0 |
-| PyJWT | 2.13.0 |
-| validate-docbr | 2.0.0 |
-| phonenumbers | 9.0.36 |
-| pip-audit | 2.10.1 |
-| **Testes e qualidade** | |
-| pytest | 9.1.1 |
-| Testcontainers | 4.15.0 |
-| Schemathesis | 4.24.3 |
-| Ruff | 0.16.2 |
-| mypy | 2.3.0 |
-| **Integrações** | |
-| FastMCP | 3.4.6 |
-| **Observabilidade** | |
-| Sentry SDK | 2.66.1 |
+</td>
+<td valign="top">
+
+<h3>BACK</h3>
+
+<table>
+<thead>
+<tr><th align="left">Tecnologia</th><th align="right">Versão</th></tr>
+</thead>
+<tbody>
+<tr><td colspan="2"><strong>Runtime e API</strong></td></tr>
+<tr><td align="left">Python</td><td align="right">3.14.7</td></tr>
+<tr><td align="left">uv</td><td align="right">0.12.3</td></tr>
+<tr><td align="left">FastAPI[standard]</td><td align="right">0.141.1</td></tr>
+<tr><td align="left">Pydantic</td><td align="right">2.13.4</td></tr>
+<tr><td align="left">pydantic-settings</td><td align="right">2.15.0</td></tr>
+<tr><td align="left">HTTPX</td><td align="right">0.28.1</td></tr>
+<tr><td colspan="2"><strong>Banco e dados</strong></td></tr>
+<tr><td align="left">PostgreSQL</td><td align="right">18.4</td></tr>
+<tr><td align="left">SQLAlchemy</td><td align="right">2.0.51</td></tr>
+<tr><td align="left">Alembic</td><td align="right">1.19.1</td></tr>
+<tr><td align="left">Psycopg</td><td align="right">3.3.4</td></tr>
+<tr><td colspan="2"><strong>Auth e segurança</strong></td></tr>
+<tr><td align="left">pwdlib (Argon2)</td><td align="right">0.3.0</td></tr>
+<tr><td align="left">PyJWT</td><td align="right">2.13.0</td></tr>
+<tr><td align="left">validate-docbr</td><td align="right">2.0.0</td></tr>
+<tr><td align="left">phonenumbers</td><td align="right">9.0.36</td></tr>
+<tr><td align="left">pip-audit</td><td align="right">2.10.1</td></tr>
+<tr><td colspan="2"><strong>Testes e qualidade</strong></td></tr>
+<tr><td align="left">pytest</td><td align="right">9.1.1</td></tr>
+<tr><td align="left">Testcontainers</td><td align="right">4.15.0</td></tr>
+<tr><td align="left">Schemathesis</td><td align="right">4.24.3</td></tr>
+<tr><td align="left">Ruff</td><td align="right">0.16.2</td></tr>
+<tr><td align="left">mypy</td><td align="right">2.3.0</td></tr>
+<tr><td colspan="2"><strong>Integrações</strong></td></tr>
+<tr><td align="left">FastMCP</td><td align="right">3.4.6</td></tr>
+<tr><td colspan="2"><strong>Observabilidade</strong></td></tr>
+<tr><td align="left">Sentry SDK</td><td align="right">2.66.1</td></tr>
+</tbody>
+</table>
+
+</td>
+</tr>
+</tbody>
+</table>
