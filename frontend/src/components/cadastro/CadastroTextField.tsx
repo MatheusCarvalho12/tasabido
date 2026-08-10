@@ -1,3 +1,4 @@
+import { type MaskOptions, useMask } from '@react-input/mask'
 import type { ReactNode } from 'react'
 
 import { Field, FieldContent, FieldError, FieldLabel } from '@/components/ui/field'
@@ -20,6 +21,8 @@ interface CadastroTextFieldProps {
   type?: string
   inputMode?: 'text' | 'numeric' | 'decimal' | 'tel' | 'email'
   autoComplete?: string
+  /** Máscara de entrada (@react-input/mask) aplicada no input, ex.: telefone. */
+  mask?: MaskOptions
   className?: string
 }
 
@@ -41,8 +44,10 @@ export function CadastroTextField({
   type,
   inputMode,
   autoComplete,
+  mask,
   className,
 }: CadastroTextFieldProps) {
+  const inputRef = useMask(mask)
   return (
     <Field data-invalid={hasError}>
       <FieldLabel htmlFor={id} className="sr-only">
@@ -53,7 +58,10 @@ export function CadastroTextField({
           <span aria-hidden="true" className="absolute left-5 top-1/2 -translate-y-1/2">
             {icon}
           </span>
+          {/* Sem máscara, o ref fica vazio: o useMask(undefined) também
+              interceptaria o input e limparia o valor digitado. */}
           <Input
+            ref={mask ? inputRef : undefined}
             id={id}
             name={name}
             type={type}

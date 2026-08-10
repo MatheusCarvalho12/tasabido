@@ -1,4 +1,12 @@
+import type { MaskOptions } from '@react-input/mask'
+
 import type { Condicao, PapelFamiliar, RegisterRequest } from '@/types/cadastro'
+
+/** Máscara fixa de CPF: 000.000.000-00 (11 dígitos). */
+export const CPF_MASK: MaskOptions = {
+  mask: '___.___.___-__',
+  replacement: { _: /\d/ },
+}
 
 /** Rótulos humanizados das condições (ordem do mockup). */
 export const LABELS_CONDICOES: Record<Condicao, string> = {
@@ -92,10 +100,17 @@ export function maskBrDate(raw: string): string {
 interface RegisterStateSource {
   papel: PapelFamiliar | null
   nome: string
+  cpf: string
   telefone: string
   email: string
   senha: string
-  crianca: { nome: string; dataNascimento: string; peso: string; condicoes: Condicao[] }
+  crianca: {
+    nome: string
+    cpf: string
+    dataNascimento: string
+    peso: string
+    condicoes: Condicao[]
+  }
   redeApoio: PapelFamiliar[]
 }
 
@@ -110,11 +125,13 @@ export function buildRegisterPayload(state: RegisterStateSource): RegisterReques
     password: state.senha,
     role: 'family',
     family_role: state.papel ?? 'outro-familiar',
+    cpf: state.cpf.trim(),
     phone: state.telefone.trim(),
     birth_date: null,
     children: [
       {
         name: state.crianca.nome.trim(),
+        cpf: state.crianca.cpf.trim(),
         birth_date: toIsoDate(state.crianca.dataNascimento),
         weight_kg: Number.isFinite(peso) ? peso : null,
         conditions: state.crianca.condicoes,

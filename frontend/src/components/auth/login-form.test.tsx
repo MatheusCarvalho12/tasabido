@@ -37,21 +37,20 @@ async function renderLoginForm(props: Partial<LoginFormProps> = {}, onLoggedIn =
 }
 
 describe('LoginForm', () => {
-  it('mostra erro de validação para e-mail inválido e senha curta', async () => {
+  it('mostra erro de validação para e-mail inválido e senha vazia', async () => {
     const user = userEvent.setup()
     await renderLoginForm()
 
     await user.type(screen.getByLabelText('E-mail'), 'email-invalido')
     await user.tab()
 
-    expect(await screen.findByText('Digite um e-mail válido.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Esse e-mail não parece certo. Dá uma conferida?'),
+    ).toBeInTheDocument()
 
-    await user.type(screen.getByLabelText('Senha'), '123')
     await user.tab()
 
-    expect(
-      await screen.findByText('A senha precisa de pelo menos 8 caracteres.'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Digite sua senha.')).toBeInTheDocument()
   })
 
   it('mostra "E-mail ou senha incorretos." quando a API responde 401', async () => {

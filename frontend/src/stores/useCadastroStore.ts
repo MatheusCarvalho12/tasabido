@@ -7,6 +7,7 @@ interface CadastroState {
   /** Papel selecionado no passo 1. `null` enquanto nada foi escolhido. */
   papel: PapelFamiliar | null
   nome: string
+  cpf: string
   telefone: string
   email: string
   idade: string
@@ -14,7 +15,9 @@ interface CadastroState {
   crianca: Crianca
   redeApoio: PapelFamiliar[]
   setPapel: (papel: PapelFamiliar) => void
-  setSobre: (sobre: Pick<CadastroState, 'nome' | 'telefone' | 'email' | 'idade' | 'senha'>) => void
+  setSobre: (
+    sobre: Pick<CadastroState, 'nome' | 'cpf' | 'telefone' | 'email' | 'idade' | 'senha'>,
+  ) => void
   setCrianca: (crianca: Partial<Crianca>) => void
   setRedeApoio: (redeApoio: PapelFamiliar[]) => void
   resetCadastro: () => void
@@ -22,6 +25,7 @@ interface CadastroState {
 
 const DEFAULT_CRIANCA: Crianca = {
   nome: '',
+  cpf: '',
   dataNascimento: '',
   idade: '',
   peso: '',
@@ -37,6 +41,7 @@ export const useCadastroStore = create<CadastroState>()(
     (set) => ({
       papel: null,
       nome: '',
+      cpf: '',
       telefone: '',
       email: '',
       idade: '',
@@ -51,6 +56,7 @@ export const useCadastroStore = create<CadastroState>()(
         set({
           papel: null,
           nome: '',
+          cpf: '',
           telefone: '',
           email: '',
           idade: '',

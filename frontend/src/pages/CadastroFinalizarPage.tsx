@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ApiRequestError, registerApi } from '@/lib/api'
 import { saveAuth } from '@/lib/auth'
 import { buildRegisterPayload } from '@/lib/cadastro'
+import { sobreVoceSemConfirmacaoSchema, suaFamiliaSchema } from '@/lib/validation'
 import { useCadastroStore } from '@/stores/useCadastroStore'
 
 function messageForError(error: Error): string {
@@ -47,6 +48,24 @@ export function CadastroFinalizarPage() {
     registerMutation.mutate()
   }
 
+  /** Só permite criar a conta com os dados dos passos anteriores válidos. */
+  const dadosValidos =
+    sobreVoceSemConfirmacaoSchema.safeParse({
+      nome: wizard.nome,
+      cpf: wizard.cpf,
+      telefone: wizard.telefone,
+      email: wizard.email,
+      idade: wizard.idade,
+      senha: wizard.senha,
+    }).success &&
+    suaFamiliaSchema.safeParse({
+      nome: wizard.crianca.nome,
+      cpf: wizard.crianca.cpf,
+      dataNascimento: wizard.crianca.dataNascimento,
+      idade: wizard.crianca.idade,
+      peso: wizard.crianca.peso,
+    }).success
+
   return (
     <CadastroWizardLayout
       currentStep={4}
@@ -55,7 +74,7 @@ export function CadastroFinalizarPage() {
       backTo="/cadastro/familia"
       bubbleText="Bem-vindo à nossa turma!"
       continueLabel={registerMutation.isPending ? 'Criando conta…' : 'Criar conta'}
-      continueDisabled={registerMutation.isPending}
+      continueDisabled={!dadosValidos || registerMutation.isPending}
       onContinue={handleCriarConta}
     >
       <ResumoCard />

@@ -15,6 +15,7 @@ export type Condicao = 'tea' | 'tdah' | 'dislexia' | 'tod' | 'atraso_fala' | 'ou
 /** Dados da criança coletados no passo 3. Datas em dd/mm/aaaa, pesos como texto. */
 export interface Crianca {
   nome: string
+  cpf: string
   dataNascimento: string
   idade: string
   peso: string
@@ -23,6 +24,7 @@ export interface Crianca {
 
 export interface RegisterChildRequest {
   name: string
+  cpf: string
   birth_date: string | null
   weight_kg: number | null
   conditions: Condicao[]
@@ -35,6 +37,7 @@ export interface RegisterRequest {
   password: string
   role: 'family'
   family_role: PapelFamiliar
+  cpf: string
   phone: string
   birth_date: null
   children: RegisterChildRequest[]

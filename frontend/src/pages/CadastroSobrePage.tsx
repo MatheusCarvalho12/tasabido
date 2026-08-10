@@ -1,12 +1,16 @@
-import { CalendarBlank, Envelope, Phone, User } from '@phosphor-icons/react'
-import { useForm } from '@tanstack/react-form'
+import { CalendarBlank, Envelope, IdentificationCard, Phone, User } from '@phosphor-icons/react'
+import type { MaskOptions } from '@react-input/mask'
+import { useForm, useStore } from '@tanstack/react-form'
 import { useNavigate } from '@tanstack/react-router'
 
 import { PasswordField } from '@/components/auth/PasswordField'
 import { CadastroTextField } from '@/components/cadastro/CadastroTextField'
 import { CadastroWizardLayout } from '@/components/cadastro/CadastroWizardLayout'
 import { Field, FieldContent, FieldError, FieldLabel } from '@/components/ui/field'
+import { CPF_MASK } from '@/lib/cadastro'
 import {
+  sobreVoceSchema,
+  validateCpf,
   validateEmail,
   validateIdade,
   validateName,
@@ -17,9 +21,24 @@ import {
 import { useCadastroStore } from '@/stores/useCadastroStore'
 
 const GRID = 'col-span-12'
-const GRID_TELEFONE = 'col-span-12 lg:col-span-8'
+const GRID_CPF = 'col-span-12 lg:col-span-4'
+const GRID_TELEFONE = 'col-span-12 lg:col-span-4'
 const GRID_IDADE = 'col-span-12 lg:col-span-4'
 const GRID_SENHA = 'col-span-12 lg:col-span-6'
+
+/**
+ * Máscara dinâmica do telefone: (XX) XXXX-XXXX para fixo (10 dígitos) e
+ * (XX) XXXXX-XXXX para celular (11 dígitos) — trocada antes de cada entrada.
+ */
+const TELEFONE_MASK: MaskOptions = {
+  mask: '(__) ____-____',
+  replacement: { _: /\d/ },
+  modify: ({ value, data, inputType }) => {
+    const entrada = inputType === 'insert' ? (data ?? '') : ''
+    const digitos = `${value}${entrada}`.replace(/\D/g, '').length
+    return { mask: digitos > 10 ? '(__) _____-____' : '(__) ____-____' }
+  },
+}
 
 /**
  * Passo 2 do cadastro familiar — "Sobre você". Formulário em grid:
@@ -34,6 +53,7 @@ export function CadastroSobrePage() {
       const state = useCadastroStore.getState()
       return {
         nome: state.nome,
+        cpf: state.cpf,
         telefone: state.telefone,
         email: state.email,
         idade: state.idade,
@@ -44,6 +64,7 @@ export function CadastroSobrePage() {
     onSubmit: ({ value }) => {
       setSobre({
         nome: value.nome,
+        cpf: value.cpf,
         telefone: value.telefone,
         email: value.email,
         idade: value.idade,
@@ -53,6 +74,12 @@ export function CadastroSobrePage() {
     },
   })
 
+  /** Passo válido de verdade (schema zod) → habilita o botão Continuar. */
+  const passoValido = useStore(
+    form.store,
+    (state) => sobreVoceSchema.safeParse(state.values).success,
+  )
+
   return (
     <CadastroWizardLayout
       currentStep={2}
@@ -60,6 +87,7 @@ export function CadastroSobrePage() {
       subtitle="Conta pra gente quem é você"
       backTo="/cadastro"
       bubbleText="Quase lá! Falta pouco pra gente começar."
+      continueDisabled={!passoValido}
       onContinue={() => {
         void form.handleSubmit()
       }}
@@ -102,15 +130,52 @@ export function CadastroSobrePage() {
         </form.Field>
 
         <form.Field
+          name="cpf"
+          validators={{
+            onChange: ({ value }) =>
+              value.replace(/\D/g, '').length >= 11 ? validateCpf(value) : undefined,
+            onBlur: ({ value }) => validateCpf(value),
+            onSubmit: ({ value }) => validateCpf(value),
+          }}
+        >
+          {(field) => (
+            <div className={`${GRID} ${GRID_CPF} order-2 lg:order-2`}>
+              <CadastroTextField
+                id={field.name}
+                name={field.name}
+                label="CPF"
+                placeholder="CPF"
+                icon={
+                  <IdentificationCard
+                    weight="fill"
+                    aria-hidden="true"
+                    className="size-6 text-purple"
+                  />
+                }
+                inputMode="numeric"
+                autoComplete="off"
+                mask={CPF_MASK}
+                value={field.state.value}
+                onChange={field.handleChange}
+                onBlur={field.handleBlur}
+                hasError={field.state.meta.errors.length > 0}
+                error={field.state.meta.errors[0]}
+              />
+            </div>
+          )}
+        </form.Field>
+
+        <form.Field
           name="telefone"
           validators={{
-            onChange: ({ value }) => (value ? validatePhone(value) : undefined),
+            onChange: ({ value }) =>
+              value.replace(/\D/g, '').length >= 10 ? validatePhone(value) : undefined,
             onBlur: ({ value }) => validatePhone(value),
             onSubmit: ({ value }) => validatePhone(value),
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_TELEFONE} order-2 lg:order-2`}>
+            <div className={`${GRID} ${GRID_TELEFONE} order-3 lg:order-3`}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -119,6 +184,7 @@ export function CadastroSobrePage() {
                 icon={<Phone weight="fill" aria-hidden="true" className="size-6 text-turquoise" />}
                 inputMode="tel"
                 autoComplete="tel"
+                mask={TELEFONE_MASK}
                 value={field.state.value}
                 onChange={field.handleChange}
                 onBlur={field.handleBlur}
@@ -138,7 +204,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} order-3 lg:order-4`}>
+            <div className={`${GRID} order-4 lg:order-5`}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -169,7 +235,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_IDADE} order-4 lg:order-3`}>
+            <div className={`${GRID} ${GRID_IDADE} order-5 lg:order-4`}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -198,7 +264,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_SENHA} order-5 lg:order-5`}>
+            <div className={`${GRID} ${GRID_SENHA} order-6 lg:order-6`}>
               <Field data-invalid={field.state.meta.errors.length > 0}>
                 <FieldLabel htmlFor={field.name} className="sr-only">
                   Senha
@@ -233,7 +299,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_SENHA} order-6 lg:order-6`}>
+            <div className={`${GRID} ${GRID_SENHA} order-7 lg:order-7`}>
               <Field data-invalid={field.state.meta.errors.length > 0}>
                 <FieldLabel htmlFor={field.name} className="sr-only">
                   Confirmar senha

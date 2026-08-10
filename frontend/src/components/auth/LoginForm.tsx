@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { ApiRequestError, loginApi } from '@/lib/api'
-import { validateEmail, validatePassword } from '@/lib/validation'
+import { validateEmail, validateLoginPassword } from '@/lib/validation'
 import type { AuthRole, User } from '@/types/auth'
 
 export interface LoginFormProps {
@@ -133,9 +133,9 @@ export function LoginForm({
         <form.Field
           name="password"
           validators={{
-            onChange: ({ value }) => (value ? validatePassword(value) : undefined),
-            onBlur: ({ value }) => validatePassword(value),
-            onSubmit: ({ value }) => validatePassword(value),
+            onChange: ({ value }) => (value ? validateLoginPassword(value) : undefined),
+            onBlur: ({ value }) => validateLoginPassword(value),
+            onSubmit: ({ value }) => validateLoginPassword(value),
           }}
         >
           {(field) => (

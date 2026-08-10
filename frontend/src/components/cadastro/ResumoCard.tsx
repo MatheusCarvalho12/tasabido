@@ -1,4 +1,12 @@
-import { Baby, Envelope, Phone, PuzzlePiece, User, UsersThree } from '@phosphor-icons/react'
+import {
+  Baby,
+  Envelope,
+  IdentificationCard,
+  Phone,
+  PuzzlePiece,
+  User,
+  UsersThree,
+} from '@phosphor-icons/react'
 import type { ReactNode } from 'react'
 
 import { PAPEIS_FAMILIARES } from '@/components/cadastro/papeis'
@@ -14,7 +22,7 @@ interface ResumoRow {
 
 /** Resumo do cadastro no passo 4: papel com avatar + linhas com ícones. */
 export function ResumoCard() {
-  const { papel, nome, telefone, email, crianca, redeApoio } = useCadastroStore()
+  const { papel, nome, cpf, telefone, email, crianca, redeApoio } = useCadastroStore()
 
   const papelOption = PAPEIS_FAMILIARES.find((option) => option.id === papel)
 
@@ -31,6 +39,11 @@ export function ResumoCard() {
       icon: <User weight="fill" aria-hidden="true" className="size-6 text-yellow" />,
       label: 'Nome',
       value: nome || '—',
+    },
+    {
+      icon: <IdentificationCard weight="fill" aria-hidden="true" className="size-6 text-coral" />,
+      label: 'CPF',
+      value: cpf || '—',
     },
     {
       icon: <Phone weight="fill" aria-hidden="true" className="size-6 text-turquoise" />,

@@ -1,5 +1,5 @@
-import { Baby, CalendarBlank, Scales } from '@phosphor-icons/react'
-import { useForm } from '@tanstack/react-form'
+import { Baby, CalendarBlank, IdentificationCard, Scales } from '@phosphor-icons/react'
+import { useForm, useStore } from '@tanstack/react-form'
 import { useNavigate } from '@tanstack/react-router'
 
 import { CadastroTextField } from '@/components/cadastro/CadastroTextField'
@@ -7,8 +7,15 @@ import { CadastroWizardLayout } from '@/components/cadastro/CadastroWizardLayout
 import { CondicaoChips } from '@/components/cadastro/CondicaoChips'
 import { DateField } from '@/components/cadastro/DateField'
 import { RedeApoioChips } from '@/components/cadastro/RedeApoioChips'
-import { calcAge, parseBrDate } from '@/lib/cadastro'
-import { validateChildName, validateIdade, validatePeso } from '@/lib/validation'
+import { CPF_MASK, calcAge, parseBrDate } from '@/lib/cadastro'
+import {
+  suaFamiliaSchema,
+  validateChildName,
+  validateCpf,
+  validateDataNascimento,
+  validateIdade,
+  validatePeso,
+} from '@/lib/validation'
 import { useCadastroStore } from '@/stores/useCadastroStore'
 import type { Condicao, PapelFamiliar } from '@/types/cadastro'
 
@@ -28,6 +35,7 @@ export function CadastroFamiliaPage() {
       const state = useCadastroStore.getState()
       return {
         nome: state.crianca.nome,
+        cpf: state.crianca.cpf,
         dataNascimento: state.crianca.dataNascimento,
         idade: state.crianca.idade,
         peso: state.crianca.peso,
@@ -39,6 +47,7 @@ export function CadastroFamiliaPage() {
       const idadeFinal = value.idade.trim() ? value.idade : date ? String(calcAge(date)) : ''
       setCrianca({
         nome: value.nome,
+        cpf: value.cpf,
         dataNascimento: value.dataNascimento,
         idade: idadeFinal,
         peso: value.peso,
@@ -47,6 +56,12 @@ export function CadastroFamiliaPage() {
     },
   })
 
+  /** Passo válido de verdade (schema zod) → habilita o botão Continuar. */
+  const passoValido = useStore(
+    form.store,
+    (state) => suaFamiliaSchema.safeParse(state.values).success,
+  )
+
   return (
     <CadastroWizardLayout
       currentStep={3}
@@ -54,6 +69,7 @@ export function CadastroFamiliaPage() {
       subtitle="Conta pra gente quem vai brincar com a gente"
       backTo="/cadastro/sobre"
       bubbleText="A gente cuida junto, tá?"
+      continueDisabled={!passoValido}
       onContinue={() => {
         void form.handleSubmit()
       }}
@@ -102,29 +118,47 @@ export function CadastroFamiliaPage() {
             </form.Field>
 
             <form.Field
+              name="cpf"
+              validators={{
+                onChange: ({ value }) =>
+                  value.replace(/\D/g, '').length >= 11 ? validateCpf(value) : undefined,
+                onBlur: ({ value }) => validateCpf(value),
+                onSubmit: ({ value }) => validateCpf(value),
+              }}
+            >
+              {(field) => (
+                <div className="col-span-12 lg:col-span-6">
+                  <CadastroTextField
+                    id={field.name}
+                    name={field.name}
+                    label="CPF da criança"
+                    placeholder="CPF"
+                    icon={
+                      <IdentificationCard
+                        weight="fill"
+                        aria-hidden="true"
+                        className="size-6 text-purple"
+                      />
+                    }
+                    inputMode="numeric"
+                    autoComplete="off"
+                    mask={CPF_MASK}
+                    value={field.state.value}
+                    onChange={field.handleChange}
+                    onBlur={field.handleBlur}
+                    hasError={field.state.meta.errors.length > 0}
+                    error={field.state.meta.errors[0]}
+                  />
+                </div>
+              )}
+            </form.Field>
+
+            <form.Field
               name="dataNascimento"
               validators={{
-                onChange: ({ value }) => {
-                  if (!value) return undefined
-                  const date = parseBrDate(value)
-                  if (!date) return 'Data inválida. Use o formato dd/mm/aaaa.'
-                  if (date > new Date()) return 'A data não pode estar no futuro.'
-                  return undefined
-                },
-                onBlur: ({ value }) => {
-                  if (!value) return undefined
-                  const date = parseBrDate(value)
-                  if (!date) return 'Data inválida. Use o formato dd/mm/aaaa.'
-                  if (date > new Date()) return 'A data não pode estar no futuro.'
-                  return undefined
-                },
-                onSubmit: ({ value }) => {
-                  if (!value) return undefined
-                  const date = parseBrDate(value)
-                  if (!date) return 'Data inválida. Use o formato dd/mm/aaaa.'
-                  if (date > new Date()) return 'A data não pode estar no futuro.'
-                  return undefined
-                },
+                onChange: ({ value }) => (value ? validateDataNascimento(value) : undefined),
+                onBlur: ({ value }) => validateDataNascimento(value),
+                onSubmit: ({ value }) => validateDataNascimento(value),
               }}
             >
               {(field) => (
@@ -136,9 +170,10 @@ export function CadastroFamiliaPage() {
                     value={field.state.value}
                     onChange={(value) => {
                       field.handleChange(value)
-                      // Quando a data completa sai do picker e a idade está livre, calcula na hora.
+                      // Quando a data completa sai do picker e a idade está livre,
+                      // calcula na hora (apenas datas passadas — futura fica inválida).
                       const date = parseBrDate(value)
-                      if (date && !form.state.values.idade.trim()) {
+                      if (date && date <= new Date() && !form.state.values.idade.trim()) {
                         form.setFieldValue('idade', String(calcAge(date)))
                       }
                     }}
@@ -159,7 +194,7 @@ export function CadastroFamiliaPage() {
               }}
             >
               {(field) => (
-                <div className="col-span-12 lg:col-span-3">
+                <div className="col-span-12 lg:col-span-4">
                   <CadastroTextField
                     id={field.name}
                     name={field.name}
@@ -193,7 +228,7 @@ export function CadastroFamiliaPage() {
               }}
             >
               {(field) => (
-                <div className="col-span-12 lg:col-span-3">
+                <div className="col-span-12 lg:col-span-4">
                   <CadastroTextField
                     id={field.name}
                     name={field.name}
