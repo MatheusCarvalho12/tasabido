@@ -12,8 +12,8 @@ import { calcAge, parseBrDate } from '@/lib/cadastro'
 export const MSG_NOME = 'Precisamos do seu nome pra te chamar do jeito certo'
 export const MSG_TELEFONE = 'Esse telefone não parece certo. Confere o DDD e o número?'
 export const MSG_CPF = 'Esse CPF não parece válido. Confere os números?'
+export const MSG_CEP = 'Esse CEP não parece certo. Confere os números?'
 export const MSG_EMAIL = 'Esse e-mail não parece certo. Dá uma conferida?'
-export const MSG_IDADE = 'A idade precisa ser entre 0 e 120 anos'
 export const MSG_SENHA = 'A senha precisa ter pelo menos 8 caracteres, com letra e número'
 export const MSG_SENHAS = 'As senhas não batem. Confere de novo?'
 export const MSG_NOME_CRIANCA = 'Qual o nome da criança?'
@@ -51,23 +51,19 @@ const telefoneSchema = z
 
 const emailSchema = z.email({ message: MSG_EMAIL })
 
-/** Idade: opcional; quando preenchida, inteiro de 0 a 120. */
-export function validateIdade(value: string): string | undefined {
-  const idade = value.trim()
-  if (!idade) {
+/** CEP: opcional; quando preenchido, exatamente 8 dígitos. */
+export function validateCep(value: string): string | undefined {
+  const digitos = value.replace(/\D/g, '')
+  if (!digitos) {
     return undefined
   }
-  if (!/^\d+$/.test(idade)) {
-    return MSG_IDADE
-  }
-  const numero = Number(idade)
-  return Number.isInteger(numero) && numero >= 0 && numero <= 120 ? undefined : MSG_IDADE
+  return digitos.length === 8 ? undefined : MSG_CEP
 }
 
-const idadeSchema = z
+const cepSchema = z
   .string()
   .trim()
-  .refine((value) => value === '' || validateIdade(value) === undefined, MSG_IDADE)
+  .refine((value) => value === '' || validateCep(value) === undefined, MSG_CEP)
 
 /** Data de nascimento: opcional; quando preenchida, válida, não futura e até 120 anos. */
 export function validateDataNascimento(value: string): string | undefined {
@@ -115,6 +111,7 @@ const sobreVoceBaseSchema = z.object({
   email: emailSchema,
   dataNascimento: dataNascimentoSchema,
   senha: senhaSchema,
+  cep: cepSchema,
 })
 
 export const sobreVoceSchema = sobreVoceBaseSchema
@@ -154,7 +151,6 @@ export const suaFamiliaSchema = z.object({
   nome: nomeCriancaSchema,
   cpf: cpfSchema,
   dataNascimento: dataNascimentoSchema,
-  idade: idadeSchema,
   peso: pesoSchema,
 })
 

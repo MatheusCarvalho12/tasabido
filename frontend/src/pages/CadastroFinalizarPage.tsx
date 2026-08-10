@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { CadastroWizardLayout } from '@/components/cadastro/CadastroWizardLayout'
 import { ResumoCard } from '@/components/cadastro/ResumoCard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ApiRequestError, registerApi } from '@/lib/api'
 import { saveAuth } from '@/lib/auth'
 import { buildRegisterPayload } from '@/lib/cadastro'
@@ -56,13 +57,13 @@ export function CadastroFinalizarPage() {
       telefone: wizard.telefone,
       email: wizard.email,
       dataNascimento: wizard.dataNascimento,
+      cep: wizard.cep,
       senha: wizard.senha,
     }).success &&
     suaFamiliaSchema.safeParse({
       nome: wizard.crianca.nome,
       cpf: wizard.crianca.cpf,
       dataNascimento: wizard.crianca.dataNascimento,
-      idade: wizard.crianca.idade,
       peso: wizard.crianca.peso,
     }).success
 
@@ -74,10 +75,29 @@ export function CadastroFinalizarPage() {
       backTo="/cadastro/familia"
       bubbleText="Bem-vindo à nossa turma!"
       continueLabel={registerMutation.isPending ? 'Criando conta…' : 'Criar conta'}
-      continueDisabled={!dadosValidos || registerMutation.isPending}
+      continueDisabled={!dadosValidos || !wizard.lgpdConsent || registerMutation.isPending}
       onContinue={handleCriarConta}
     >
       <ResumoCard />
+
+      {/* Consentimento LGPD: sem ele o botão Criar conta fica desabilitado. */}
+      <div className="flex w-full items-start gap-3">
+        <Checkbox
+          id="lgpd-consent"
+          checked={wizard.lgpdConsent}
+          onCheckedChange={(checked) => wizard.setLgpdConsent(checked)}
+          className="mt-1 size-5 shrink-0 rounded-[5px] border-2 border-turquoise/50 data-checked:border-turquoise data-checked:bg-turquoise"
+        />
+        <label htmlFor="lgpd-consent" className="text-base font-semibold text-navy sm:text-lg">
+          Concordo com o uso dos meus dados e dos dados da criança, conforme a{' '}
+          <Link
+            to="/privacidade"
+            className="text-blue underline decoration-blue/40 underline-offset-4 transition-colors hover:decoration-blue"
+          >
+            Política de Privacidade
+          </Link>
+        </label>
+      </div>
 
       {formError && (
         <Alert

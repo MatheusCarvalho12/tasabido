@@ -8,6 +8,12 @@ export const CPF_MASK: MaskOptions = {
   replacement: { _: /\d/ },
 }
 
+/** Máscara fixa de CEP: 00000-000 (8 dígitos). */
+export const CEP_MASK: MaskOptions = {
+  mask: '_____-___',
+  replacement: { _: /\d/ },
+}
+
 /** Rótulos humanizados das condições (ordem do mockup). */
 export const LABELS_CONDICOES: Record<Condicao, string> = {
   tea: 'TEA',
@@ -18,8 +24,9 @@ export const LABELS_CONDICOES: Record<Condicao, string> = {
   outra: 'Outra',
 }
 
-export function labelCondicao(condicao: Condicao): string {
-  return LABELS_CONDICOES[condicao]
+/** Rótulo de uma condição (id padrão) ou do próprio texto quando customizada. */
+export function labelCondicao(condicao: string): string {
+  return LABELS_CONDICOES[condicao as Condicao] ?? condicao
 }
 
 /** Rótulo humanizado de um papel/apoio (Mamãe, Papai, …). */
@@ -105,12 +112,14 @@ export interface RegisterStateSource {
   email: string
   dataNascimento: string
   senha: string
+  cep: string
+  lgpdConsent: boolean
   crianca: {
     nome: string
     cpf: string
     dataNascimento: string
     peso: string
-    condicoes: Condicao[]
+    condicoes: string[]
   }
   redeApoio: PapelFamiliar[]
 }
@@ -119,6 +128,7 @@ export interface RegisterStateSource {
 export function buildRegisterPayload(state: RegisterStateSource): RegisterRequest {
   const pesoBruto = state.crianca.peso.trim()
   const peso = pesoBruto ? Number(pesoBruto.replace(',', '.')) : null
+  const cepDigitos = state.cep.replace(/\D/g, '')
 
   return {
     name: state.nome.trim(),
@@ -129,6 +139,8 @@ export function buildRegisterPayload(state: RegisterStateSource): RegisterReques
     cpf: state.cpf.trim(),
     phone: state.telefone.trim(),
     birth_date: toIsoDate(state.dataNascimento),
+    cep: cepDigitos.length === 8 ? cepDigitos : undefined,
+    lgpd_consent: state.lgpdConsent,
     children: [
       {
         name: state.crianca.nome.trim(),

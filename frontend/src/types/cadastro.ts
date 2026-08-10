@@ -17,9 +17,9 @@ export interface Crianca {
   nome: string
   cpf: string
   dataNascimento: string
-  idade: string
   peso: string
-  condicoes: Condicao[]
+  /** Condições: ids padrão ('tea', 'tdah', …) ou textos customizados (chips "Outra"). */
+  condicoes: string[]
 }
 
 export interface RegisterChildRequest {
@@ -27,7 +27,8 @@ export interface RegisterChildRequest {
   cpf: string
   birth_date: string | null
   weight_kg: number | null
-  conditions: Condicao[]
+  /** Condições como strings: ids padrão ('tea', 'tdah', …) ou textos custom. */
+  conditions: string[]
 }
 
 /** Contrato POST /auth/register (papel família). */
@@ -40,6 +41,10 @@ export interface RegisterRequest {
   cpf: string
   phone: string
   birth_date: string | null
+  /** CEP do responsável (opcional; apenas dígitos, 8). */
+  cep?: string
+  /** Consentimento LGPD (obrigatório para família). */
+  lgpd_consent: boolean
   children: RegisterChildRequest[]
   support_network: string[]
 }

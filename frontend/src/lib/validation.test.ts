@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  MSG_CEP,
   MSG_CPF,
   MSG_DATA_ANTIGA,
   MSG_DATA_FUTURA,
   MSG_DATA_INVALIDA,
   MSG_EMAIL,
-  MSG_IDADE,
   MSG_NOME,
   MSG_NOME_CRIANCA,
   MSG_PESO,
@@ -16,11 +16,11 @@ import {
   sobreVoceSchema,
   sobreVoceSemConfirmacaoSchema,
   suaFamiliaSchema,
+  validateCep,
   validateChildName,
   validateCpf,
   validateDataNascimento,
   validateEmail,
-  validateIdade,
   validateName,
   validatePassword,
   validatePeso,
@@ -33,6 +33,7 @@ const SOBRE_VALIDO = {
   telefone: '(11) 98765-4321',
   email: 'ana@exemplo.com',
   dataNascimento: '15/08/1990',
+  cep: '01310-100',
   senha: 'senha123',
   confirmarSenha: 'senha123',
 }
@@ -41,7 +42,6 @@ const FAMILIA_VALIDA = {
   nome: 'Bento',
   cpf: '295.379.955-93',
   dataNascimento: '10/05/2021',
-  idade: '',
   peso: '12,5',
 }
 
@@ -85,6 +85,22 @@ describe('validação de CPF (cpf-cnpj-validator, dígitos verificadores)', () =
   })
 })
 
+describe('validação de CEP', () => {
+  it('aceita CEP com 8 dígitos (com ou sem máscara)', () => {
+    expect(validateCep('01310-100')).toBeUndefined()
+    expect(validateCep('01310100')).toBeUndefined()
+  })
+
+  it('rejeita CEP incompleto', () => {
+    expect(validateCep('01310')).toBe(MSG_CEP)
+    expect(validateCep('0131010')).toBe(MSG_CEP)
+  })
+
+  it('aceita CEP vazio (campo opcional)', () => {
+    expect(validateCep('')).toBeUndefined()
+  })
+})
+
 describe('validação de e-mail (zod nativo)', () => {
   it('rejeita e-mail mal formado', () => {
     expect(validateEmail('ana@')).toBe(MSG_EMAIL)
@@ -107,22 +123,6 @@ describe('validação de senha', () => {
 
   it('aceita senha com 8+ caracteres, letra e número', () => {
     expect(validatePassword('senha123')).toBeUndefined()
-  })
-})
-
-describe('validação de idade', () => {
-  it('rejeita idade acima de 120', () => {
-    expect(validateIdade('121')).toBe(MSG_IDADE)
-  })
-
-  it('rejeita idade não inteira ou com letras', () => {
-    expect(validateIdade('12,5')).toBe(MSG_IDADE)
-    expect(validateIdade('abc')).toBe(MSG_IDADE)
-  })
-
-  it('aceita idade dentro da faixa', () => {
-    expect(validateIdade('0')).toBeUndefined()
-    expect(validateIdade('120')).toBeUndefined()
   })
 })
 
@@ -271,6 +271,7 @@ describe('schema do passo 2 sem confirmação (usado no passo 4)', () => {
       telefone: SOBRE_VALIDO.telefone,
       email: SOBRE_VALIDO.email,
       dataNascimento: SOBRE_VALIDO.dataNascimento,
+      cep: SOBRE_VALIDO.cep,
       senha: SOBRE_VALIDO.senha,
     })
     expect(resultado.success).toBe(true)

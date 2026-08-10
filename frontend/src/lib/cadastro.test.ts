@@ -11,6 +11,8 @@ const WIZARD: RegisterStateSource = {
   email: 'ana@exemplo.com',
   dataNascimento: '15/08/1990',
   senha: 'senha123',
+  cep: '01310-100',
+  lgpdConsent: true,
   crianca: {
     nome: 'Bento',
     cpf: '295.379.955-93',
@@ -41,9 +43,20 @@ describe('buildRegisterPayload (POST /auth/register)', () => {
       family_role: 'mamae',
       cpf: '295.379.955-93',
       phone: '(11) 98765-4321',
+      cep: '01310100',
+      lgpd_consent: true,
       support_network: ['papai', 'outro'],
     })
     expect(payload.children[0]?.weight_kg).toBe(12.5)
+  })
+
+  it('envia o CEP só com dígitos e omite quando não preenchido', () => {
+    expect(buildRegisterPayload(WIZARD).cep).toBe('01310100')
+    expect(buildRegisterPayload({ ...WIZARD, cep: '' }).cep).toBeUndefined()
+  })
+
+  it('envia o consentimento LGPD como veio da store', () => {
+    expect(buildRegisterPayload({ ...WIZARD, lgpdConsent: false }).lgpd_consent).toBe(false)
   })
 
   it('envia birth_date null quando a data do responsável não foi preenchida', () => {

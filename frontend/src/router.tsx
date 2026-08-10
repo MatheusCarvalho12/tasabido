@@ -14,6 +14,7 @@ import { CadastroSobrePage } from '@/pages/CadastroSobrePage'
 import { ForgotPasswordStubPage } from '@/pages/ForgotPasswordStubPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
+import { PrivacyPage } from '@/pages/PrivacyPage'
 import { ProfessionalLoginPage } from '@/pages/ProfessionalLoginPage'
 
 const rootRoute = createRootRoute({
@@ -83,6 +84,12 @@ const forgotPasswordRoute = createRoute({
   component: ForgotPasswordStubPage,
 })
 
+const privacyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/privacidade',
+  component: PrivacyPage,
+})
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   loginRoute,
@@ -92,6 +99,7 @@ const routeTree = rootRoute.addChildren([
   signupFamiliaRoute,
   signupFinalizarRoute,
   forgotPasswordRoute,
+  privacyRoute,
 ])
 
 export const router = createRouter({

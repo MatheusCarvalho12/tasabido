@@ -18,6 +18,8 @@ interface CadastroTextFieldProps {
   onBlur: () => void
   hasError: boolean
   error?: string
+  /** Texto de apoio abaixo do campo (ex.: "São Paulo, SP" vindo do ViaCEP). */
+  hint?: string
   type?: string
   inputMode?: 'text' | 'numeric' | 'decimal' | 'tel' | 'email'
   autoComplete?: string
@@ -41,6 +43,7 @@ export function CadastroTextField({
   onBlur,
   hasError,
   error,
+  hint,
   type,
   inputMode,
   autoComplete,
@@ -72,7 +75,7 @@ export function CadastroTextField({
             onChange={(event) => onChange(event.target.value)}
             onBlur={onBlur}
             aria-invalid={hasError}
-            aria-describedby={hasError && error ? `${id}-error` : undefined}
+            aria-describedby={hasError && error ? `${id}-error` : hint ? `${id}-hint` : undefined}
             className={cn(
               'h-14 w-full rounded-full border-transparent bg-white pl-14 pr-5 text-base font-medium text-navy shadow-clay-sm placeholder:text-muted-foreground md:text-base',
               className,
@@ -83,6 +86,11 @@ export function CadastroTextField({
           <FieldError id={`${id}-error`} className="pl-5">
             {error}
           </FieldError>
+        )}
+        {!error && hint && (
+          <p id={`${id}-hint`} className="pl-5 text-sm font-semibold text-turquoise-dark">
+            {hint}
+          </p>
         )}
       </FieldContent>
     </Field>
