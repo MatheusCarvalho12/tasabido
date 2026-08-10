@@ -14,10 +14,31 @@ interface AvatarChipProps {
 }
 
 /**
+ * Pontos de quebra silábica explícitos (U+00AD) para palavras longas sem
+ * espaço. hyphens:auto NÃO hifeniza fontes variáveis no Chrome (a Baloo 2 do
+ * app é "Baloo 2 Variable"), então o ponto de quebra vira explícito: invisível
+ * quando a palavra cabe na linha, vira um hífen correto quando ela quebra.
+ * Nunca corta palavra no meio sem hífen.
+ */
+const SOFT_HYPHEN_LABELS: Record<string, string> = {
+  'Fonoaudiólogo(a)': 'Fono\u00ADau\u00ADdió\u00ADlo\u00ADgo(a)',
+  'Psicopedagogo(a)': 'Psico\u00ADpeda\u00ADgogo(a)',
+}
+
+function hyphenatableLabel(label: string): string {
+  return SOFT_HYPHEN_LABELS[label] ?? label
+}
+
+/**
  * Chip com avatar + label e check circular no canto quando selecionado
  * (outline azul + fundo azulado suave, mockup). Usado nos passos 1 e 3.
  */
 export function AvatarChip({ option, size = 'md', className }: AvatarChipProps) {
+  // Labels longos (ex.: "Fonoaudiólogo(a)", "Terapeuta ocupacional") usam fonte
+  // levemente menor (13-14px) para caberem em até 2 linhas; os demais mantêm a
+  // fonte padrão. O CARD não muda de tamanho: a reserva de 2 linhas é fixa.
+  const isLongLabel = option.label.length > 12
+
   return (
     <ToggleGroupItem
       value={option.id}
@@ -48,18 +69,20 @@ export function AvatarChip({ option, size = 'md', className }: AvatarChipProps) 
         )}
       />
       <span
+        lang="pt-BR"
         className={cn(
-          // Quebra controlada: palavras longas (ex.: "Fonoaudiólogo(a)") quebram
-          // dentro do card em até 2 linhas centralizadas; min/max-h de 2 linhas
-          // mantém TODOS os cards do grid com a MESMA altura (uniformidade).
-          // Overflow-wrap: ANYWHERE (não break-word): break-word não reduz o
-          // min-content da palavra, então o flex item não encolhe e a palavra
-          // vaza — anywhere permite quebrar em qualquer caractere.
-          'min-w-0 whitespace-normal [overflow-wrap:anywhere] text-center text-base font-bold leading-tight text-navy min-h-[2.5em] max-h-[2.5em] overflow-hidden sm:text-lg',
-          size === 'sm' && 'text-left text-sm sm:text-base',
+          // Quebra LIMPA: hyphens:auto (com lang="pt-BR") + pontos de quebra
+          // silábica explícitos (U+00AD, ver hyphenatableLabel) — palavras
+          // longas quebram APENAS com hífen correto, nunca no meio sem hífen.
+          // w-full + min-w-0 fixam a largura do texto à do card (sem depender
+          // do min-content da palavra). Reserva FIXA de 2 linhas em px mantém
+          // TODOS os cards com a MESMA altura, com ou sem quebra.
+          'w-full min-w-0 whitespace-normal hyphens-auto text-center font-bold leading-tight text-navy overflow-hidden min-h-[45px] max-h-[45px]',
+          isLongLabel ? 'text-[13px] sm:text-sm' : 'text-base sm:text-lg',
+          size === 'sm' && 'text-left text-sm sm:text-base min-h-[2.5em] max-h-[2.5em]',
         )}
       >
-        {option.label}
+        {hyphenatableLabel(option.label)}
       </span>
     </ToggleGroupItem>
   )
