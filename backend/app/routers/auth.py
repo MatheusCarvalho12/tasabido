@@ -88,7 +88,7 @@ def _child_model(child: ChildRegister) -> Child:
         cpf=child.cpf,
         birth_date=child.birth_date,
         weight_kg=child.weight_kg,
-        conditions=[c.value for c in child.conditions],
+        conditions=list(child.conditions),
     )
 
 

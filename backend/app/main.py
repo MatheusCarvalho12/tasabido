@@ -50,6 +50,8 @@ def _humanize_validation_error(errors: Sequence[dict[str, Any]]) -> str:
                 return "O papel familiar é obrigatório para o cadastro family"
             if field == "cpf" and "children" in loc:
                 return "O CPF da criança é obrigatório"
+        if "conditions" in loc:
+            return _FIELD_ERRORS["conditions"]
         if field in _FIELD_ERRORS:
             return _FIELD_ERRORS[field]
     return "Dados inválidos"

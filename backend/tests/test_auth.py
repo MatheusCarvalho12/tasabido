@@ -218,11 +218,84 @@ def test_register_invalid_child_condition_422(client: TestClient) -> None:
             "password": "senha-segura-123",
             "family_role": "mamae",
             "cpf": "52998224725",
-            "children": [{"name": "Bento", "cpf": "11144477735", "conditions": ["inexistente"]}],
+            "children": [{"name": "Bento", "cpf": "11144477735", "conditions": ["12345"]}],
         },
     )
 
     assert response.status_code == 422
+    assert response.json()["detail"] == "Condição inválida: 12345"
+
+
+def test_register_child_custom_condition_201_persists_trimmed(client: TestClient) -> None:
+    _register(
+        client,
+        email="custom@example.com",
+        children=[
+            {
+                "name": "Bento",
+                "cpf": "11144477735",
+                "conditions": ["tea", "  Síndrome de Down  "],
+            }
+        ],
+    )
+
+    stored = _user_with_children("custom@example.com")
+    # Enum conhecido passa direto; custom é persistida sem os espaços do trim.
+    assert stored["children"][0]["conditions"] == ["tea", "Síndrome de Down"]
+
+
+def test_register_child_custom_condition_too_short_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_register_payload(
+            children=[{"name": "Bento", "cpf": "11144477735", "conditions": ["Xi"]}]
+        ),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Condição inválida: Xi"
+
+
+def test_register_child_condition_with_invalid_chars_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_register_payload(
+            children=[{"name": "Bento", "cpf": "11144477735", "conditions": ["Síndrome 123"]}]
+        ),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Condição inválida: Síndrome 123"
+
+
+def test_register_child_conditions_more_than_15_422(client: TestClient) -> None:
+    conditions = [
+        "Alfa",
+        "Bravo",
+        "Charlie",
+        "Delta",
+        "Echo",
+        "Foxtrot",
+        "Golf",
+        "Hotel",
+        "India",
+        "Juliet",
+        "Kilo",
+        "Lima",
+        "Mike",
+        "November",
+        "Oscar",
+        "Papa",
+    ]
+    response = client.post(
+        "/auth/register",
+        json=_register_payload(
+            children=[{"name": "Bento", "cpf": "11144477735", "conditions": conditions}]
+        ),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "No máximo 15 condições por criança"
 
 
 def test_register_invalid_support_network_422(client: TestClient) -> None:

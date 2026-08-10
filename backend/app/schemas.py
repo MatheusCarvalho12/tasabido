@@ -3,10 +3,18 @@ import uuid
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
-from typing import Self
+from typing import Annotated, Self
 
 import phonenumbers
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 from validate_docbr import CPF
 
 
@@ -81,6 +89,25 @@ def _validate_cep(value: str) -> str:
     return digits
 
 
+# Condição custom: letras (acentos ok), espaços e hífen; 3 a 40 caracteres após trim.
+_CONDITION_PATTERN = re.compile(r"^[^\W\d_]+(?:[\s-]+[^\W\d_]+)*$")
+_MAX_CONDITIONS = 15
+_KNOWN_CONDITIONS = frozenset(condition.value for condition in ConditionType)
+
+
+def _validate_condition(value: str) -> str:
+    """Enum conhecido passa direto (trim); senão exige texto custom válido."""
+    condition = value.strip()
+    if condition in _KNOWN_CONDITIONS:
+        return condition
+    if len(condition) < 3 or len(condition) > 40 or _CONDITION_PATTERN.fullmatch(condition) is None:
+        raise ValueError(f"Condição inválida: {condition}")
+    return condition
+
+
+ConditionValue = Annotated[str, AfterValidator(_validate_condition)]
+
+
 def _validate_birth_date(value: date) -> date:
     today = date.today()
     if value > today:
@@ -96,7 +123,7 @@ class ChildRegister(BaseModel):
     cpf: str
     birth_date: date | None = None
     weight_kg: Decimal | None = Field(default=None, gt=0, le=300)
-    conditions: list[ConditionType] = Field(default_factory=list)
+    conditions: list[ConditionValue] = Field(default_factory=list)
 
     @field_validator("name")
     @classmethod
@@ -112,6 +139,13 @@ class ChildRegister(BaseModel):
     @classmethod
     def _birth_date_valid(cls, value: date | None) -> date | None:
         return _validate_birth_date(value) if value is not None else None
+
+    @field_validator("conditions")
+    @classmethod
+    def _conditions_count_valid(cls, value: list[str]) -> list[str]:
+        if len(value) > _MAX_CONDITIONS:
+            raise ValueError(f"No máximo {_MAX_CONDITIONS} condições por criança")
+        return value
 
 
 class RegisterRequest(BaseModel):
