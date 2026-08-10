@@ -47,7 +47,8 @@ def _clean_users() -> Generator[None]:
     from app.database import engine
 
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE TABLE users"))
+        # CASCADE: children referencia users (ON DELETE CASCADE).
+        conn.execute(text("TRUNCATE TABLE users CASCADE"))
     yield
 
 
