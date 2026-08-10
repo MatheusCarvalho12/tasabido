@@ -3,23 +3,32 @@ import { cn } from '@/lib/utils'
 
 interface MascotSpeechBubbleProps {
   className?: string
+  /**
+   * Lado da ponta: 'left' (mascote à esquerda do balão, mobile) ou 'bottom'
+   * (mascote abaixo do balão, desktop). O balão SEMPRE aponta para o Sabidinho.
+   */
+  tail?: 'left' | 'bottom'
 }
 
 /**
- * Balão de fala do Sabidinho com ponteiro à esquerda, sempre ancorado no
- * personagem (regra: o balão aponta para o mascote, nunca solto).
+ * Balão de fala do Sabidinho, sempre ancorado no personagem (regra: o balão
+ * aponta para o mascote, nunca solto).
  */
-export function MascotSpeechBubble({ className }: MascotSpeechBubbleProps) {
+export function MascotSpeechBubble({ className, tail = 'left' }: MascotSpeechBubbleProps) {
   return (
     <div
       className={cn(
-        'relative max-w-[250px] rounded-2xl rounded-bl-sm bg-white px-4 py-3 shadow-clay-white',
+        'relative max-w-[250px] rounded-2xl bg-white px-4 py-3 shadow-clay-white',
+        tail === 'left' ? 'rounded-bl-sm' : 'rounded-b-sm',
         className,
       )}
     >
       <span
         aria-hidden="true"
-        className="absolute -left-2 top-1/2 size-4 -translate-y-1/2 rotate-45 rounded-[3px] bg-white"
+        className={cn(
+          'absolute size-4 rotate-45 rounded-[3px] bg-white',
+          tail === 'left' ? '-left-2 top-1/2 -translate-y-1/2' : '-bottom-2 left-[26%]',
+        )}
       />
       <p className="text-sm leading-snug font-semibold text-navy sm:text-base">
         Eu vou te ajudar em cada etapa.

@@ -79,7 +79,10 @@ export function CadastroPage() {
                   alt="Pai, mãe, criança e o mascote Sabidinho em um abraço acolhedor"
                   className="w-full"
                 />
-                <MascotSpeechBubble className="absolute right-[2%] bottom-[5%] max-w-[46%]" />
+                <MascotSpeechBubble
+                  tail="bottom"
+                  className="absolute right-[2%] bottom-[30%] max-w-[46%]"
+                />
               </div>
             </div>
           </div>

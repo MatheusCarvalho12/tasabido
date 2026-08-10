@@ -28,7 +28,7 @@ export function TrustBadges({ desktopHeartLabel, align = 'start' }: TrustBadgesP
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center justify-center gap-x-3 gap-y-2',
+        'flex flex-wrap items-center justify-center gap-x-1.5 gap-y-2 sm:gap-x-3',
         align === 'start' && 'lg:justify-start',
       )}
     >
@@ -37,8 +37,12 @@ export function TrustBadges({ desktopHeartLabel, align = 'start' }: TrustBadgesP
           {index > 0 && (
             <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-navy/25" />
           )}
-          <span className="flex items-center gap-1.5 text-sm font-semibold text-navy">
-            <Icon weight="fill" aria-hidden="true" className={cn('size-5 shrink-0', className)} />
+          <span className="flex items-center gap-1 text-[13px] font-semibold whitespace-nowrap text-navy sm:gap-1.5 sm:text-sm">
+            <Icon
+              weight="fill"
+              aria-hidden="true"
+              className={cn('size-4 shrink-0 sm:size-5', className)}
+            />
             {desktopLabel ? (
               <>
                 <span className="lg:hidden">{label}</span>
