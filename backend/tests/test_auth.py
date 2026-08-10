@@ -4,11 +4,19 @@ from typing import Any, cast
 from fastapi.testclient import TestClient
 
 
-def _register(client: TestClient, email: str = "ana@example.com") -> dict[str, Any]:
-    response = client.post(
-        "/auth/register",
-        json={"name": "Ana Souza", "email": email, "password": "senha-segura-123"},
-    )
+def _register(
+    client: TestClient,
+    email: str = "ana@example.com",
+    role: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": "Ana Souza",
+        "email": email,
+        "password": "senha-segura-123",
+    }
+    if role is not None:
+        payload["role"] = role
+    response = client.post("/auth/register", json=payload)
     assert response.status_code == 201
     return cast(dict[str, Any], response.json())
 
@@ -40,6 +48,26 @@ def test_register_invalid_payload_422(client: TestClient) -> None:
     response = client.post(
         "/auth/register",
         json={"name": "A", "email": "nao-e-email", "password": "curto"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_register_with_role_professional_201(client: TestClient) -> None:
+    body = _register(client, email="paula@example.com", role="professional")
+
+    assert body["user"]["role"] == "professional"
+
+
+def test_register_invalid_role_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json={
+            "name": "Paula Lima",
+            "email": "paula@example.com",
+            "password": "senha-segura-123",
+            "role": "admin",
+        },
     )
 
     assert response.status_code == 422
@@ -78,6 +106,50 @@ def test_login_unknown_email_401(client: TestClient) -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "E-mail ou senha incorretos"
+
+
+def test_login_with_matching_role_200(client: TestClient) -> None:
+    _register(client, email="paula@example.com", role="professional")
+
+    response = client.post(
+        "/auth/login",
+        json={
+            "email": "paula@example.com",
+            "password": "senha-segura-123",
+            "role": "professional",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["user"]["role"] == "professional"
+
+
+def test_login_with_wrong_role_401(client: TestClient) -> None:
+    _register(client)
+
+    response = client.post(
+        "/auth/login",
+        json={
+            "email": "ana@example.com",
+            "password": "senha-segura-123",
+            "role": "professional",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "E-mail ou senha incorretos"
+
+
+def test_login_without_role_200_any_role(client: TestClient) -> None:
+    _register(client, email="paula@example.com", role="professional")
+
+    response = client.post(
+        "/auth/login",
+        json={"email": "paula@example.com", "password": "senha-segura-123"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["user"]["role"] == "professional"
 
 
 def test_me_with_token_200(client: TestClient) -> None:

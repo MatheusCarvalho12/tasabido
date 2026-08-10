@@ -21,7 +21,12 @@ def register(payload: RegisterRequest, db: DbSession) -> AuthResponse:
     if db.scalar(select(User).where(User.email == email)) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="E-mail já cadastrado")
 
-    user = User(name=payload.name, email=email, password_hash=hash_password(payload.password))
+    user = User(
+        name=payload.name,
+        email=email,
+        password_hash=hash_password(payload.password),
+        role=payload.role.value,
+    )
     db.add(user)
     try:
         db.commit()
@@ -40,6 +45,9 @@ def login(payload: LoginRequest, db: DbSession) -> AuthResponse:
         verify_password(payload.password, DUMMY_PASSWORD_HASH)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha incorretos")
     if not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha incorretos")
+    if payload.role is not None and user.role != payload.role.value:
+        # Mesma mensagem do login inválido: não vaza a role do usuário.
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha incorretos")
     return _auth_response(user)
 

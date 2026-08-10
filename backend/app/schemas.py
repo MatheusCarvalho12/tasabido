@@ -1,17 +1,25 @@
 import uuid
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class UserRole(StrEnum):
+    FAMILY = "family"
+    PROFESSIONAL = "professional"
 
 
 class RegisterRequest(BaseModel):
     name: str = Field(min_length=2)
     email: EmailStr
     password: str = Field(min_length=8)
+    role: UserRole = UserRole.FAMILY
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    role: UserRole | None = None
 
 
 class UserOut(BaseModel):
