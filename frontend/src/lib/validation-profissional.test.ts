@@ -34,7 +34,7 @@ describe('validação do documento profissional (passo 3)', () => {
   it('exige conselho, número do registro e UF', () => {
     const resultado = documentoProfissionalSchema.safeParse({
       conselho: '',
-      numeroRegistro: '12',
+      numeroRegistro: '1',
       uf: '',
       cnpj: '',
     })
@@ -80,13 +80,15 @@ describe('validação do documento profissional (passo 3)', () => {
 })
 
 describe('validação do número do registro', () => {
-  it('rejeita registro com menos de 3 caracteres', () => {
-    expect(validateNumeroRegistro('12')).toBe(MSG_REGISTRO)
+  it('rejeita registro com menos de 2 dígitos', () => {
+    expect(validateNumeroRegistro('1')).toBe(MSG_REGISTRO)
+    expect(validateNumeroRegistro('a')).toBe(MSG_REGISTRO)
     expect(validateNumeroRegistro('')).toBe(MSG_REGISTRO)
   })
 
-  it('aceita registro com 3+ caracteres', () => {
-    expect(validateNumeroRegistro('123')).toBeUndefined()
+  it('aceita registro com 2+ dígitos (somente números contam)', () => {
+    expect(validateNumeroRegistro('12')).toBeUndefined()
+    expect(validateNumeroRegistro('1234567890')).toBeUndefined()
   })
 })
 

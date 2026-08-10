@@ -25,7 +25,9 @@ import {
   CONSELHOS,
   FAIXAS_ETARIAS,
   MODALIDADES_ATENDIMENTO,
+  NUMERO_REGISTRO_MASK,
   PASSOS_CADASTRO_PROFISSIONAL,
+  placeholderNumeroRegistro,
   UFS,
 } from '@/lib/cadastro-profissional'
 import {
@@ -38,7 +40,8 @@ import {
 import { useCadastroProfissionalStore } from '@/stores/useCadastroProfissionalStore'
 import type { Conselho } from '@/types/cadastro-profissional'
 
-const GRID_TERCO = 'col-span-12 lg:col-span-4'
+/** Metade da largura no desktop — Conselho+Número / UF+CNPJ (grid 2+2). */
+const GRID_METADE = 'col-span-12 lg:col-span-6'
 
 /** Ícones das faixas etárias no mesmo estilo dos chips de condições. */
 const FAIXAS_COM_ICONE: { id: string; label: string; icon: ReactNode }[] = FAIXAS_ETARIAS.map(
@@ -112,6 +115,9 @@ export function CadastroProfissionalAtuacaoPage() {
     (state) => documentoProfissionalSchema.safeParse(state.values).success,
   )
 
+  /** Conselho selecionado → placeholder dinâmico do número do registro. */
+  const conselhoSelecionado = useStore(form.store, (state) => state.values.conselho)
+
   return (
     <CadastroWizardLayout
       currentStep={3}
@@ -155,7 +161,7 @@ export function CadastroProfissionalAtuacaoPage() {
               }}
             >
               {(field) => (
-                <div className={GRID_TERCO}>
+                <div className={GRID_METADE}>
                   <PillSelect
                     id={field.name}
                     name={field.name}
@@ -188,16 +194,19 @@ export function CadastroProfissionalAtuacaoPage() {
               }}
             >
               {(field) => (
-                <div className={GRID_TERCO}>
+                <div className={GRID_METADE}>
                   <CadastroTextField
                     id={field.name}
                     name={field.name}
                     label="Número do registro"
-                    placeholder="Número do registro"
+                    placeholder={placeholderNumeroRegistro(conselhoSelecionado)}
                     icon={
                       <Scroll weight="fill" aria-hidden="true" className="size-6 text-turquoise" />
                     }
+                    inputMode="numeric"
                     autoComplete="off"
+                    mask={NUMERO_REGISTRO_MASK}
+                    maxLength={10}
                     value={field.state.value}
                     onChange={field.handleChange}
                     onBlur={field.handleBlur}
@@ -217,7 +226,7 @@ export function CadastroProfissionalAtuacaoPage() {
               }}
             >
               {(field) => (
-                <div className={GRID_TERCO}>
+                <div className={GRID_METADE}>
                   <PillSelect
                     id={field.name}
                     name={field.name}
@@ -245,30 +254,26 @@ export function CadastroProfissionalAtuacaoPage() {
               }}
             >
               {(field) => (
-                <>
-                  <div className="col-span-12 lg:col-span-6">
-                    <CadastroTextField
-                      id={field.name}
-                      name={field.name}
-                      label="CNPJ (opcional)"
-                      placeholder="CNPJ"
-                      icon={
-                        <Buildings weight="fill" aria-hidden="true" className="size-6 text-blue" />
-                      }
-                      inputMode="numeric"
-                      autoComplete="off"
-                      mask={CNPJ_MASK}
-                      value={field.state.value}
-                      onChange={field.handleChange}
-                      onBlur={field.handleBlur}
-                      hasError={field.state.meta.errors.length > 0}
-                      error={field.state.meta.errors[0]}
-                      hint="Opcional — só se você tiver"
-                    />
-                  </div>
-                  {/* Coluna vazia do mockup (CNPJ 1/2 + vazio no desktop) */}
-                  <div className="hidden lg:col-span-6 lg:block" aria-hidden="true" />
-                </>
+                <div className={GRID_METADE}>
+                  <CadastroTextField
+                    id={field.name}
+                    name={field.name}
+                    label="CNPJ (opcional)"
+                    placeholder="CNPJ"
+                    icon={
+                      <Buildings weight="fill" aria-hidden="true" className="size-6 text-blue" />
+                    }
+                    inputMode="numeric"
+                    autoComplete="off"
+                    mask={CNPJ_MASK}
+                    value={field.state.value}
+                    onChange={field.handleChange}
+                    onBlur={field.handleBlur}
+                    hasError={field.state.meta.errors.length > 0}
+                    error={field.state.meta.errors[0]}
+                    hint="Opcional — só se você tiver"
+                  />
+                </div>
               )}
             </form.Field>
           </div>

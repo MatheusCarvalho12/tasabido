@@ -31,9 +31,9 @@ export function validateCnpj(value: string): string | undefined {
   return cnpj.isValid(digitos) ? undefined : MSG_CNPJ
 }
 
-/** Número do registro profissional: obrigatório, mínimo 3 caracteres. */
+/** Número do registro profissional: obrigatório, somente dígitos, mínimo 2. */
 export function validateNumeroRegistro(value: string): string | undefined {
-  return value.trim().length >= 3 ? undefined : MSG_REGISTRO
+  return value.replace(/\D/g, '').length >= 2 ? undefined : MSG_REGISTRO
 }
 
 /** Campo opcional: quando preenchido, CNPJ com dígitos verificadores válidos. */
@@ -45,7 +45,7 @@ const cnpjSchema = z
 /** Passo 3 — "Documento profissional" (conselho + registro + UF obrigatórios). */
 export const documentoProfissionalSchema = z.object({
   conselho: z.string().min(1, MSG_CONSELHO),
-  numeroRegistro: z.string().trim().min(3, MSG_REGISTRO),
+  numeroRegistro: z.string().trim().min(2, MSG_REGISTRO),
   uf: z.string().min(2, MSG_UF),
   cnpj: cnpjSchema,
 })

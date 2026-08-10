@@ -25,6 +25,8 @@ interface CadastroTextFieldProps {
   autoComplete?: string
   /** Máscara de entrada (@react-input/mask) aplicada no input, ex.: telefone. */
   mask?: MaskOptions
+  /** Comprimento máximo de caracteres aceitos no input. */
+  maxLength?: number
   className?: string
 }
 
@@ -48,6 +50,7 @@ export function CadastroTextField({
   inputMode,
   autoComplete,
   mask,
+  maxLength,
   className,
 }: CadastroTextFieldProps) {
   const inputRef = useMask(mask)
@@ -70,6 +73,7 @@ export function CadastroTextField({
             type={type}
             inputMode={inputMode}
             autoComplete={autoComplete}
+            maxLength={maxLength}
             placeholder={placeholder}
             value={value}
             onChange={(event) => onChange(event.target.value)}

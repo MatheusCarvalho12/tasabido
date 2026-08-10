@@ -21,6 +21,27 @@ export const CNPJ_MASK: MaskOptions = {
   replacement: { _: /\d/ },
 }
 
+/** Máscara do número do registro: somente dígitos, até 10 (sem letras/espaços/símbolos). */
+export const NUMERO_REGISTRO_MASK: MaskOptions = {
+  mask: '__________',
+  replacement: { _: /\d/ },
+}
+
+/** Exemplo de número de registro por conselho — só dígitos, sem barras. */
+const EXEMPLO_NUMERO_REGISTRO: Record<string, string> = {
+  crm: 'ex.: 123456',
+  crp: 'ex.: 123456',
+  crefito: 'ex.: 123456',
+  crfa: 'ex.: 123456',
+  cro: 'ex.: 123456',
+  outro: 'ex.: 123456',
+}
+
+/** Placeholder dinâmico do número de registro conforme o conselho escolhido. */
+export function placeholderNumeroRegistro(conselho: Conselho | string | null | undefined): string {
+  return EXEMPLO_NUMERO_REGISTRO[conselho ?? ''] ?? 'ex.: 123456'
+}
+
 /** As 27 UFs brasileiras, na ordem oficial (dropdown do registro). */
 export const UFS = [
   'AC',
