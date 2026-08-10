@@ -3,6 +3,8 @@ import { cn } from '@/lib/utils'
 
 interface MascotSpeechBubbleProps {
   className?: string
+  /** Mensagem exibida no balão. */
+  text?: string
   /**
    * Lado da ponta: 'left' (mascote à esquerda do balão, mobile) ou 'bottom'
    * (mascote abaixo do balão, desktop). O balão SEMPRE aponta para o Sabidinho.
@@ -14,7 +16,11 @@ interface MascotSpeechBubbleProps {
  * Balão de fala do Sabidinho, sempre ancorado no personagem (regra: o balão
  * aponta para o mascote, nunca solto).
  */
-export function MascotSpeechBubble({ className, tail = 'left' }: MascotSpeechBubbleProps) {
+export function MascotSpeechBubble({
+  className,
+  text = 'Eu vou te ajudar em cada etapa.',
+  tail = 'left',
+}: MascotSpeechBubbleProps) {
   return (
     <div
       className={cn(
@@ -30,15 +36,13 @@ export function MascotSpeechBubble({ className, tail = 'left' }: MascotSpeechBub
           tail === 'left' ? '-left-2 top-1/2 -translate-y-1/2' : '-bottom-2 left-[26%]',
         )}
       />
-      <p className="text-sm leading-snug font-semibold text-navy sm:text-base">
-        Eu vou te ajudar em cada etapa.
-      </p>
+      <p className="text-sm leading-snug font-semibold text-navy sm:text-base">{text}</p>
     </div>
   )
 }
 
 /** Mascote pequeno + balão, conjunto centralizado (mockup mobile). */
-export function MascotSpeechRow() {
+export function MascotSpeechRow({ text }: { text?: string }) {
   return (
     <div className="flex items-center justify-center gap-3">
       <img
@@ -47,7 +51,7 @@ export function MascotSpeechRow() {
         draggable={false}
         className="size-16 shrink-0 object-contain sm:size-20"
       />
-      <MascotSpeechBubble />
+      <MascotSpeechBubble text={text} />
     </div>
   )
 }

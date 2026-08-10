@@ -2,6 +2,7 @@ import { createClient } from '@hey-api/client-fetch'
 
 import { getToken } from '@/lib/auth'
 import type { ApiErrorBody, LoginRequest, LoginResponse, MeResponse, User } from '@/types/auth'
+import type { RegisterRequest, RegisterResponse } from '@/types/cadastro'
 
 export const apiClient = createClient({
   baseUrl: 'http://localhost:8000',
@@ -24,6 +25,17 @@ export async function loginApi(body: LoginRequest): Promise<LoginResponse> {
   })
   if (!data) {
     throw new ApiRequestError(response.status, error?.detail ?? 'Não foi possível entrar.')
+  }
+  return data
+}
+
+export async function registerApi(body: RegisterRequest): Promise<RegisterResponse> {
+  const { data, error, response } = await apiClient.post<RegisterResponse, ApiErrorBody>({
+    url: '/auth/register',
+    body,
+  })
+  if (!data) {
+    throw new ApiRequestError(response.status, error?.detail ?? 'Não foi possível criar sua conta.')
   }
   return data
 }

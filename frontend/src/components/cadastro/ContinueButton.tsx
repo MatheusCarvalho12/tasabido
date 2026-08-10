@@ -7,13 +7,20 @@ interface ContinueButtonProps {
   disabled?: boolean
   onClick?: () => void
   className?: string
+  /** Rótulo do botão (passo 4 usa "Criar conta"). */
+  label?: string
 }
 
 /**
- * Botão "Continuar" do fluxo de cadastro: pill azul com seta circular branca
- * à direita. Desabilitado (cinza) até o passo estar preenchido.
+ * Botão de ação do fluxo de cadastro: pill azul com seta circular branca
+ * à direita. Desabilitado (cinza) até o passo estar pronto.
  */
-export function ContinueButton({ disabled, onClick, className }: ContinueButtonProps) {
+export function ContinueButton({
+  disabled,
+  onClick,
+  className,
+  label = 'Continuar',
+}: ContinueButtonProps) {
   return (
     <Button
       type="button"
@@ -24,7 +31,7 @@ export function ContinueButton({ disabled, onClick, className }: ContinueButtonP
         className,
       )}
     >
-      Continuar
+      {label}
       <span
         aria-hidden="true"
         className="absolute right-1.5 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-white text-blue shadow-clay-sm transition-transform group-hover:translate-x-0.5 group-disabled:translate-x-0 group-disabled:text-[#a39d94]"

@@ -13,12 +13,15 @@ interface PasswordFieldProps {
   hasError: boolean
   errorId?: string
   className?: string
+  /** Placeholder exibido na pill (padrão: "Senha"). */
+  placeholder?: string
+  /** Autocomplete do campo (padrão: senha atual; cadastro usa "new-password"). */
+  autoComplete?: string
 }
 
 /**
  * Campo de senha no estilo do mockup: cadeado roxo à esquerda,
  * botão de olho à direita para alternar a visibilidade.
- * Reutilizável na futura tela de cadastro.
  */
 export function PasswordField({
   id,
@@ -29,6 +32,8 @@ export function PasswordField({
   hasError,
   errorId,
   className,
+  placeholder = 'Senha',
+  autoComplete = 'current-password',
 }: PasswordFieldProps) {
   const [visible, setVisible] = useState(false)
 
@@ -43,8 +48,8 @@ export function PasswordField({
         id={id}
         name={name}
         type={visible ? 'text' : 'password'}
-        autoComplete="current-password"
-        placeholder="Senha"
+        autoComplete={autoComplete}
+        placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
