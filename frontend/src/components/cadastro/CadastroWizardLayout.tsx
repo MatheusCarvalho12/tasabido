@@ -64,7 +64,7 @@ export function CadastroWizardLayout({
       <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         {/* my-auto: centraliza quando o painel cabe; top-alinha + scroll quando é alto */}
         <div className="my-auto w-full animate-card-in rounded-[2rem] bg-panel shadow-clay sm:rounded-[2.5rem]">
-          <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
+          <div className="grid lg:grid-cols-[1.3fr_0.7fr]">
             {/* Coluna esquerda: fluxo de cadastro (mobile e desktop) */}
             <div className="flex flex-col items-center gap-6 px-6 py-9 sm:gap-7 sm:px-12 sm:py-12 lg:gap-8 lg:px-14 lg:py-14">
               {backTo && (

@@ -49,8 +49,14 @@ export function AvatarChip({ option, size = 'md', className }: AvatarChipProps) 
       />
       <span
         className={cn(
-          'min-w-0 whitespace-normal text-base font-bold leading-tight text-navy sm:text-lg',
-          size === 'sm' && 'text-sm sm:text-base',
+          // Quebra controlada: palavras longas (ex.: "Fonoaudiólogo(a)") quebram
+          // dentro do card em até 2 linhas centralizadas; min/max-h de 2 linhas
+          // mantém TODOS os cards do grid com a MESMA altura (uniformidade).
+          // Overflow-wrap: ANYWHERE (não break-word): break-word não reduz o
+          // min-content da palavra, então o flex item não encolhe e a palavra
+          // vaza — anywhere permite quebrar em qualquer caractere.
+          'min-w-0 whitespace-normal [overflow-wrap:anywhere] text-center text-base font-bold leading-tight text-navy min-h-[2.5em] max-h-[2.5em] overflow-hidden sm:text-lg',
+          size === 'sm' && 'text-left text-sm sm:text-base',
         )}
       >
         {option.label}

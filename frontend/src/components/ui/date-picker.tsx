@@ -240,7 +240,7 @@ export function DatePicker({
               className="size-6 shrink-0 text-purple"
             />
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="text-xs font-semibold text-navy/70">{label}</span>
+              <span className="text-xs font-medium text-navy/70">{label}</span>
               <span
                 className={cn(
                   'truncate text-base font-medium',
