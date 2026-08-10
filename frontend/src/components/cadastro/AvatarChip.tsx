@@ -43,13 +43,13 @@ export function AvatarChip({ option, size = 'md', className }: AvatarChipProps) 
         alt=""
         draggable={false}
         className={cn(
-          'h-16 w-16 object-contain sm:h-20 sm:w-20',
+          'h-16 w-16 max-w-full shrink-0 object-contain sm:h-20 sm:w-20',
           size === 'sm' && 'h-10 w-10 sm:h-12 sm:w-12',
         )}
       />
       <span
         className={cn(
-          'text-base font-bold leading-tight text-navy sm:text-lg',
+          'min-w-0 whitespace-normal text-base font-bold leading-tight text-navy sm:text-lg',
           size === 'sm' && 'text-sm sm:text-base',
         )}
       >

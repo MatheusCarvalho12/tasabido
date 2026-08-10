@@ -26,11 +26,7 @@ export function ResumoCard() {
 
   const papelOption = PAPEIS_FAMILIARES.find((option) => option.id === papel)
 
-  const criancaResumo = [
-    crianca.nome,
-    crianca.idade ? `${crianca.idade} anos` : null,
-    crianca.peso ? `${crianca.peso} kg` : null,
-  ]
+  const criancaResumo = [crianca.nome, crianca.peso ? `${crianca.peso} kg` : null]
     .filter(Boolean)
     .join(', ')
 

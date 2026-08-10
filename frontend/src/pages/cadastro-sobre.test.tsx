@@ -5,9 +5,9 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CadastroSobrePage } from '@/pages/CadastroSobrePage'
 import { useCadastroStore } from '@/stores/useCadastroStore'
@@ -39,8 +39,37 @@ async function renderSobrePage() {
   return router
 }
 
+/**
+ * Escolhe uma data no DatePicker Tá Sabido usando as abas
+ * Ano → Mês → Dia e confirma com "Aplicar".
+ */
+async function escolherDataNascimento(
+  user: ReturnType<typeof userEvent.setup>,
+  dia: string,
+  mes: string,
+  ano: string,
+) {
+  await user.click(screen.getByRole('button', { name: /data de nascimento/i }))
+  await user.click(await screen.findByRole('tab', { name: 'Ano' }))
+  // A página 0 mostra os 12 anos mais recentes; volta com as setas até achar o ano.
+  for (let tentativas = 0; tentativas < 12; tentativas += 1) {
+    if (screen.queryByRole('button', { name: ano })) {
+      break
+    }
+    await user.click(screen.getByRole('button', { name: 'Página de anos anterior' }))
+  }
+  await user.click(screen.getByRole('button', { name: ano }))
+  await user.click(screen.getByRole('tab', { name: 'Mês' }))
+  await user.click(screen.getByRole('button', { name: mes }))
+  const painelDia = screen.getByRole('tabpanel', { name: 'Dia' })
+  await user.click(within(painelDia).getByText(dia))
+  await user.click(screen.getByRole('button', { name: 'Aplicar' }))
+}
+
 describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
   beforeEach(() => {
+    // Sem rede nos testes: a busca do ViaCEP falha em silêncio por padrão.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     useCadastroStore.setState({
       papel: null,
       nome: '',
@@ -48,13 +77,19 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
       telefone: '',
       email: '',
       dataNascimento: '',
+      cep: '',
       senha: '',
-      crianca: { nome: '', cpf: '', dataNascimento: '', idade: '', peso: '', condicoes: [] },
+      lgpdConsent: false,
+      crianca: { nome: '', cpf: '', dataNascimento: '', peso: '', condicoes: [] },
       redeApoio: [],
     })
   })
 
-  it('exibe título, subtítulo e os sete campos do formulário', async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('exibe título, subtítulo e os oito campos do formulário', async () => {
     await renderSobrePage()
 
     expect(screen.getByRole('heading', { name: 'Sobre você' })).toBeInTheDocument()
@@ -62,7 +97,7 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
     for (const placeholder of [
       'Nome completo',
       'CPF',
-      'dd/mm/aaaa',
+      'CEP',
       'Telefone',
       'E-mail',
       'Senha',
@@ -70,6 +105,7 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
     ]) {
       expect(screen.getByPlaceholderText(placeholder)).toBeInTheDocument()
     }
+    expect(screen.getByRole('button', { name: /data de nascimento/i })).toBeInTheDocument()
   })
 
   it('mantém Continuar desabilitado até o passo estar válido', async () => {
@@ -81,7 +117,7 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
 
     await user.type(screen.getByPlaceholderText('Nome completo'), 'Ana Souza')
     await user.type(screen.getByPlaceholderText('CPF'), '295.379.955-93')
-    await user.type(screen.getByPlaceholderText('dd/mm/aaaa'), '15/08/1990')
+    await escolherDataNascimento(user, '15', 'Agosto', '1990')
     await user.type(screen.getByPlaceholderText('Telefone'), '(11) 98765-4321')
     await user.type(screen.getByPlaceholderText('E-mail'), 'ana@exemplo.com')
     await user.type(screen.getByPlaceholderText('Senha'), 'senha123')
@@ -90,14 +126,20 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
     expect(continuar).toBeEnabled()
   })
 
-  it('rejeita data de nascimento no futuro com a mensagem humanizada', async () => {
+  it('não permite escolher anos no futuro no DatePicker', async () => {
     const user = userEvent.setup()
     await renderSobrePage()
 
-    await user.type(screen.getByPlaceholderText('dd/mm/aaaa'), '12/12/2099')
-    await user.click(screen.getByPlaceholderText('Nome completo'))
+    await user.click(screen.getByRole('button', { name: /data de nascimento/i }))
+    await user.click(await screen.findByRole('tab', { name: 'Ano' }))
 
-    expect(screen.getByText('Essa data não pode estar no futuro')).toBeInTheDocument()
+    // A última página de anos termina no ano atual (nada futuro).
+    expect(
+      screen.getByRole('button', { name: String(new Date().getFullYear()) }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: String(new Date().getFullYear() + 1) }),
+    ).not.toBeInTheDocument()
   })
 
   it('mostra os erros humanizados ao sair dos campos inválidos', async () => {
@@ -142,13 +184,55 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
     expect(screen.getByText('As senhas não batem. Confere de novo?')).toBeInTheDocument()
   })
 
+  it('rejeita CEP incompleto com a mensagem humanizada', async () => {
+    const user = userEvent.setup()
+    await renderSobrePage()
+
+    await user.type(screen.getByPlaceholderText('CEP'), '01310')
+    await user.click(screen.getByPlaceholderText('Telefone'))
+
+    expect(screen.getByText('Esse CEP não parece certo. Confere os números?')).toBeInTheDocument()
+  })
+
+  it('consulta o ViaCEP ao sair do CEP válido e mostra "Cidade, UF"', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ cep: '01310-100', localidade: 'São Paulo', uf: 'SP' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    const user = userEvent.setup()
+    await renderSobrePage()
+
+    await user.type(screen.getByPlaceholderText('CEP'), '01310-100')
+    await user.click(screen.getByPlaceholderText('Telefone'))
+
+    expect(await screen.findByText('São Paulo, SP')).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith('https://viacep.com.br/ws/01310100/json')
+  })
+
+  it('segue em silêncio quando o ViaCEP falha (sem erro bloqueante)', async () => {
+    const user = userEvent.setup()
+    await renderSobrePage()
+
+    await user.type(screen.getByPlaceholderText('CEP'), '01310-100')
+    await user.click(screen.getByPlaceholderText('Telefone'))
+
+    // Busca falhou (stub offline): nenhum erro nem cidade aparecem.
+    expect(
+      screen.queryByText('Esse CEP não parece certo. Confere os números?'),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/São Paulo, SP/)).not.toBeInTheDocument()
+  })
+
   it('salva os dados na store e navega para /cadastro/familia quando válido', async () => {
     const user = userEvent.setup()
     const router = await renderSobrePage()
 
     await user.type(screen.getByPlaceholderText('Nome completo'), 'Ana Souza')
     await user.type(screen.getByPlaceholderText('CPF'), '295.379.955-93')
-    await user.type(screen.getByPlaceholderText('dd/mm/aaaa'), '15/08/1990')
+    await escolherDataNascimento(user, '15', 'Agosto', '1990')
+    await user.type(screen.getByPlaceholderText('CEP'), '01310-100')
     await user.type(screen.getByPlaceholderText('Telefone'), '(11) 98765-4321')
     await user.type(screen.getByPlaceholderText('E-mail'), 'ana@exemplo.com')
     await user.type(screen.getByPlaceholderText('Senha'), 'senha123')
@@ -161,6 +245,7 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
     expect(state.telefone).toBe('(11) 98765-4321')
     expect(state.email).toBe('ana@exemplo.com')
     expect(state.dataNascimento).toBe('15/08/1990')
+    expect(state.cep).toBe('01310-100')
     expect(state.senha).toBe('senha123')
     expect(router.state.location.pathname).toBe('/cadastro/familia')
     expect(screen.getByText('Sua família')).toBeInTheDocument()

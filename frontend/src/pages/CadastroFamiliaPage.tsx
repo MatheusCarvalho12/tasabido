@@ -1,23 +1,22 @@
-import { Baby, CalendarBlank, IdentificationCard, Scales } from '@phosphor-icons/react'
+import { Baby, IdentificationCard, Scales } from '@phosphor-icons/react'
 import { useForm, useStore } from '@tanstack/react-form'
 import { useNavigate } from '@tanstack/react-router'
 
 import { CadastroTextField } from '@/components/cadastro/CadastroTextField'
 import { CadastroWizardLayout } from '@/components/cadastro/CadastroWizardLayout'
 import { CondicaoChips } from '@/components/cadastro/CondicaoChips'
-import { DateField } from '@/components/cadastro/DateField'
 import { RedeApoioChips } from '@/components/cadastro/RedeApoioChips'
-import { CPF_MASK, calcAge, parseBrDate } from '@/lib/cadastro'
+import { DatePicker } from '@/components/ui/date-picker'
+import { CPF_MASK } from '@/lib/cadastro'
 import {
   suaFamiliaSchema,
   validateChildName,
   validateCpf,
   validateDataNascimento,
-  validateIdade,
   validatePeso,
 } from '@/lib/validation'
 import { useCadastroStore } from '@/stores/useCadastroStore'
-import type { Condicao, PapelFamiliar } from '@/types/cadastro'
+import type { PapelFamiliar } from '@/types/cadastro'
 
 /**
  * Passo 3 do cadastro familiar — "Sua família". Seções: a criança
@@ -37,19 +36,14 @@ export function CadastroFamiliaPage() {
         nome: state.crianca.nome,
         cpf: state.crianca.cpf,
         dataNascimento: state.crianca.dataNascimento,
-        idade: state.crianca.idade,
         peso: state.crianca.peso,
       }
     })(),
     onSubmit: ({ value }) => {
-      // Idade calculada automaticamente quando a data foi preenchida e o campo está livre.
-      const date = parseBrDate(value.dataNascimento)
-      const idadeFinal = value.idade.trim() ? value.idade : date ? String(calcAge(date)) : ''
       setCrianca({
         nome: value.nome,
         cpf: value.cpf,
         dataNascimento: value.dataNascimento,
-        idade: idadeFinal,
         peso: value.peso,
       })
       void navigate({ to: '/cadastro/finalizar' })
@@ -163,52 +157,10 @@ export function CadastroFamiliaPage() {
             >
               {(field) => (
                 <div className="col-span-12 lg:col-span-6">
-                  <DateField
+                  <DatePicker
                     id={field.name}
                     name={field.name}
                     label="Data de nascimento"
-                    value={field.state.value}
-                    onChange={(value) => {
-                      field.handleChange(value)
-                      // Quando a data completa sai do picker e a idade está livre,
-                      // calcula na hora (apenas datas passadas — futura fica inválida).
-                      const date = parseBrDate(value)
-                      if (date && date <= new Date() && !form.state.values.idade.trim()) {
-                        form.setFieldValue('idade', String(calcAge(date)))
-                      }
-                    }}
-                    onBlur={field.handleBlur}
-                    hasError={field.state.meta.errors.length > 0}
-                    error={field.state.meta.errors[0]}
-                  />
-                </div>
-              )}
-            </form.Field>
-
-            <form.Field
-              name="idade"
-              validators={{
-                onChange: ({ value }) => (value ? validateIdade(value) : undefined),
-                onBlur: ({ value }) => validateIdade(value),
-                onSubmit: ({ value }) => validateIdade(value),
-              }}
-            >
-              {(field) => (
-                <div className="col-span-12 lg:col-span-4">
-                  <CadastroTextField
-                    id={field.name}
-                    name={field.name}
-                    label="Idade"
-                    placeholder="Idade"
-                    icon={
-                      <CalendarBlank
-                        weight="fill"
-                        aria-hidden="true"
-                        className="size-6 text-purple"
-                      />
-                    }
-                    inputMode="numeric"
-                    autoComplete="off"
                     value={field.state.value}
                     onChange={field.handleChange}
                     onBlur={field.handleBlur}
@@ -228,7 +180,7 @@ export function CadastroFamiliaPage() {
               }}
             >
               {(field) => (
-                <div className="col-span-12 lg:col-span-4">
+                <div className="col-span-12 lg:col-span-6">
                   <CadastroTextField
                     id={field.name}
                     name={field.name}
@@ -250,10 +202,12 @@ export function CadastroFamiliaPage() {
             </form.Field>
           </div>
 
-          <p className="pt-1 text-base font-bold text-navy sm:text-lg">Como ela se desenvolve?</p>
+          <p className="pt-1 text-base font-bold text-navy sm:text-lg">
+            Há algo importante sobre o desenvolvimento dela?
+          </p>
           <CondicaoChips
             value={criancaDaStore.condicoes}
-            onValueChange={(condicoes) => setCrianca({ condicoes } as { condicoes: Condicao[] })}
+            onValueChange={(condicoes) => setCrianca({ condicoes })}
           />
         </fieldset>
 
