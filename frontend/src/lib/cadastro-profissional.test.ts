@@ -5,6 +5,8 @@ import {
   labelConselho,
   labelFaixa,
   labelProfissao,
+  placeholderNumeroRegistro,
+  REGRA_NUMERO_REGISTRO,
 } from '@/lib/cadastro-profissional'
 
 const ESTADO_VALIDO: RegisterProfissionalStateSource = {
@@ -87,5 +89,30 @@ describe('rótulos humanizados', () => {
   it('labelFaixa traduz os enums do contrato', () => {
     expect(labelFaixa('0-3')).toBe('0-3 anos')
     expect(labelFaixa('15+')).toBe('15+ anos')
+  })
+})
+
+describe('número do registro por conselho', () => {
+  it('placeholder segue o exemplo do mockup para cada conselho', () => {
+    expect(placeholderNumeroRegistro('crm')).toBe('ex.: 123456')
+    expect(placeholderNumeroRegistro('crp')).toBe('ex.: 12345')
+    expect(placeholderNumeroRegistro('crefito')).toBe('ex.: 12345')
+    expect(placeholderNumeroRegistro('crfa')).toBe('ex.: 12345')
+    expect(placeholderNumeroRegistro('cro')).toBe('ex.: 123456')
+    expect(placeholderNumeroRegistro('outro')).toBe('ex.: 123456')
+  })
+
+  it('sem conselho usa o padrão', () => {
+    expect(placeholderNumeroRegistro(null)).toBe('ex.: 123456')
+    expect(placeholderNumeroRegistro(undefined)).toBe('ex.: 123456')
+  })
+
+  it('regra de dígitos: 4–6 nos conselhos padrão, Outro até 10', () => {
+    expect(REGRA_NUMERO_REGISTRO.crm).toEqual({ min: 4, max: 6 })
+    expect(REGRA_NUMERO_REGISTRO.crp).toEqual({ min: 4, max: 6 })
+    expect(REGRA_NUMERO_REGISTRO.crefito).toEqual({ min: 4, max: 6 })
+    expect(REGRA_NUMERO_REGISTRO.crfa).toEqual({ min: 4, max: 6 })
+    expect(REGRA_NUMERO_REGISTRO.cro).toEqual({ min: 4, max: 6 })
+    expect(REGRA_NUMERO_REGISTRO.outro).toEqual({ min: 4, max: 10 })
   })
 })

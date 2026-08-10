@@ -27,14 +27,27 @@ export const NUMERO_REGISTRO_MASK: MaskOptions = {
   replacement: { _: /\d/ },
 }
 
-/** Exemplo de número de registro por conselho — só dígitos, sem barras. */
+/** Exemplo de número de registro por conselho — só dígitos, sem barras (mockup aprovado). */
 const EXEMPLO_NUMERO_REGISTRO: Record<string, string> = {
   crm: 'ex.: 123456',
-  crp: 'ex.: 123456',
-  crefito: 'ex.: 123456',
-  crfa: 'ex.: 123456',
+  crp: 'ex.: 12345',
+  crefito: 'ex.: 12345',
+  crfa: 'ex.: 12345',
   cro: 'ex.: 123456',
   outro: 'ex.: 123456',
+}
+
+/**
+ * Regra de dígitos do número do registro por conselho (mín–máx).
+ * Todos os conselhos aceitam 4–6; "Outro" aceita até 10.
+ */
+export const REGRA_NUMERO_REGISTRO: Record<Conselho, { min: number; max: number }> = {
+  crm: { min: 4, max: 6 },
+  crp: { min: 4, max: 6 },
+  crefito: { min: 4, max: 6 },
+  crfa: { min: 4, max: 6 },
+  cro: { min: 4, max: 6 },
+  outro: { min: 4, max: 10 },
 }
 
 /** Placeholder dinâmico do número de registro conforme o conselho escolhido. */

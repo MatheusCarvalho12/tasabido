@@ -12,7 +12,7 @@ import {
 } from '@phosphor-icons/react'
 import { useForm, useStore } from '@tanstack/react-form'
 import { useNavigate } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 
 import cenaProfissional from '@/assets/cena-profissional.png'
 import { CadastroTextField } from '@/components/cadastro/CadastroTextField'
@@ -28,10 +28,12 @@ import {
   NUMERO_REGISTRO_MASK,
   PASSOS_CADASTRO_PROFISSIONAL,
   placeholderNumeroRegistro,
+  REGRA_NUMERO_REGISTRO,
   UFS,
 } from '@/lib/cadastro-profissional'
 import {
   documentoProfissionalSchema,
+  MSG_CONFERE_REGISTRO,
   MSG_CONSELHO,
   MSG_UF,
   validateCnpj,
@@ -118,6 +120,22 @@ export function CadastroProfissionalAtuacaoPage() {
   /** Conselho selecionado → placeholder dinâmico do número do registro. */
   const conselhoSelecionado = useStore(form.store, (state) => state.values.conselho)
 
+  /**
+   * Aviso humanizado quando o número do registro não cabe na regra do novo
+   * conselho e o campo é limpo (ex.: 7 dígitos do "Outro" → CRM 4–6).
+   */
+  const [avisoRegistro, setAvisoRegistro] = useState<string | null>(null)
+
+  /** Troca de conselho: limpa o número do registro se ele não couber na nova regra. */
+  const aoTrocarConselho = (conselho: string) => {
+    const regra = REGRA_NUMERO_REGISTRO[conselho as Conselho]
+    const digitos = form.state.values.numeroRegistro.replace(/\D/g, '')
+    if (regra && digitos.length > 0 && (digitos.length < regra.min || digitos.length > regra.max)) {
+      form.setFieldValue('numeroRegistro', '')
+      setAvisoRegistro(MSG_CONFERE_REGISTRO)
+    }
+  }
+
   return (
     <CadastroWizardLayout
       currentStep={3}
@@ -176,7 +194,10 @@ export function CadastroProfissionalAtuacaoPage() {
                     }
                     options={CONSELHOS}
                     value={field.state.value || null}
-                    onValueChange={field.handleChange}
+                    onValueChange={(conselho) => {
+                      aoTrocarConselho(conselho)
+                      field.handleChange(conselho)
+                    }}
                     onBlur={field.handleBlur}
                     hasError={field.state.meta.errors.length > 0}
                     error={field.state.meta.errors[0]}
@@ -188,9 +209,10 @@ export function CadastroProfissionalAtuacaoPage() {
             <form.Field
               name="numeroRegistro"
               validators={{
-                onChange: ({ value }) => (value ? validateNumeroRegistro(value) : undefined),
-                onBlur: ({ value }) => validateNumeroRegistro(value),
-                onSubmit: ({ value }) => validateNumeroRegistro(value),
+                onChange: ({ value }) =>
+                  value ? validateNumeroRegistro(value, conselhoSelecionado) : undefined,
+                onBlur: ({ value }) => validateNumeroRegistro(value, conselhoSelecionado),
+                onSubmit: ({ value }) => validateNumeroRegistro(value, conselhoSelecionado),
               }}
             >
               {(field) => (
@@ -208,10 +230,14 @@ export function CadastroProfissionalAtuacaoPage() {
                     mask={NUMERO_REGISTRO_MASK}
                     maxLength={10}
                     value={field.state.value}
-                    onChange={field.handleChange}
+                    onChange={(value) => {
+                      setAvisoRegistro(null)
+                      field.handleChange(value)
+                    }}
                     onBlur={field.handleBlur}
                     hasError={field.state.meta.errors.length > 0}
                     error={field.state.meta.errors[0]}
+                    hint={avisoRegistro ?? undefined}
                   />
                 </div>
               )}

@@ -1,6 +1,7 @@
 import { cnpj } from 'cpf-cnpj-validator'
 import { z } from 'zod'
 
+import { labelConselho, REGRA_NUMERO_REGISTRO } from '@/lib/cadastro-profissional'
 import {
   MSG_CPF,
   MSG_DATA_INVALIDA,
@@ -16,9 +17,12 @@ import {
   validatePassword,
   validatePhone,
 } from '@/lib/validation'
+import type { Conselho } from '@/types/cadastro-profissional'
 
 export const MSG_CONSELHO = 'Qual o seu conselho profissional?'
 export const MSG_REGISTRO = 'Qual o número do seu registro?'
+export const MSG_REGISTRO_CURTO = 'O número do registro precisa ter pelo menos 4 dígitos.'
+export const MSG_CONFERE_REGISTRO = 'Confere o número do registro? O formato mudou com o conselho.'
 export const MSG_UF = 'Qual a UF do seu registro?'
 export const MSG_CNPJ = 'Esse CNPJ não parece válido. Confere os números?'
 
@@ -31,9 +35,33 @@ export function validateCnpj(value: string): string | undefined {
   return cnpj.isValid(digitos) ? undefined : MSG_CNPJ
 }
 
-/** Número do registro profissional: obrigatório, somente dígitos, mínimo 2. */
-export function validateNumeroRegistro(value: string): string | undefined {
-  return value.replace(/\D/g, '').length >= 2 ? undefined : MSG_REGISTRO
+/** Mensagem de máximo de dígitos, citando o conselho quando ele é conhecido. */
+export function msgRegistroMaximo(max: number, conselho?: Conselho | string | null): string {
+  const rotulo =
+    conselho && conselho !== 'outro' ? ` do ${labelConselho(conselho as Conselho)}` : ''
+  return `O número do registro${rotulo} tem no máximo ${max} dígitos.`
+}
+
+/**
+ * Número do registro profissional: obrigatório, somente dígitos, com a regra
+ * (mín–máx) do conselho selecionado — 4–6 dígitos; "Outro" aceita até 10.
+ */
+export function validateNumeroRegistro(
+  value: string,
+  conselho?: Conselho | string | null,
+): string | undefined {
+  const digitos = value.replace(/\D/g, '')
+  if (!digitos) {
+    return MSG_REGISTRO
+  }
+  const regra = REGRA_NUMERO_REGISTRO[conselho as Conselho] ?? REGRA_NUMERO_REGISTRO.crm
+  if (digitos.length < regra.min) {
+    return MSG_REGISTRO_CURTO
+  }
+  if (digitos.length > regra.max) {
+    return msgRegistroMaximo(regra.max, conselho)
+  }
+  return undefined
 }
 
 /** Campo opcional: quando preenchido, CNPJ com dígitos verificadores válidos. */
@@ -43,12 +71,20 @@ const cnpjSchema = z
   .refine((value) => value === '' || validateCnpj(value) === undefined, MSG_CNPJ)
 
 /** Passo 3 — "Documento profissional" (conselho + registro + UF obrigatórios). */
-export const documentoProfissionalSchema = z.object({
-  conselho: z.string().min(1, MSG_CONSELHO),
-  numeroRegistro: z.string().trim().min(2, MSG_REGISTRO),
-  uf: z.string().min(2, MSG_UF),
-  cnpj: cnpjSchema,
-})
+export const documentoProfissionalSchema = z
+  .object({
+    conselho: z.string().min(1, MSG_CONSELHO),
+    numeroRegistro: z.string().trim().min(1, MSG_REGISTRO),
+    uf: z.string().min(2, MSG_UF),
+    cnpj: cnpjSchema,
+  })
+  .superRefine((dados, ctx) => {
+    // Regra do número do registro conforme o conselho selecionado (4–6; Outro até 10).
+    const erro = validateNumeroRegistro(dados.numeroRegistro, dados.conselho)
+    if (erro && erro !== MSG_REGISTRO) {
+      ctx.addIssue({ code: 'custom', path: ['numeroRegistro'], message: erro })
+    }
+  })
 
 /** Passo 2 — "Sobre você" do profissional (sem CEP; sem confirmação entre campos). */
 export const sobreProfissionalSchema = z.object({
