@@ -176,7 +176,9 @@ export function CondicaoChips({ value, onValueChange }: CondicaoChipsProps) {
         onClick={() => setAberto((atual) => !atual)}
         className={cn(
           CLASSE_CHIP,
-          'justify-start',
+          // Mobile: ocupa a linha inteira com o conteúdo centralizado (não gruda à
+          // esquerda); no desktop volta a ser a 6ª célula natural do grid 3 colunas.
+          'col-span-2 justify-center lg:col-span-1 lg:justify-start',
           aberto && 'border-blue bg-blue/10 shadow-clay-sm',
           limiteAtingido && 'pointer-events-none opacity-40',
         )}

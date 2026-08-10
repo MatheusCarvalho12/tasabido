@@ -243,7 +243,7 @@ export function DatePicker({
               <span className="text-xs font-semibold text-navy/70">{label}</span>
               <span
                 className={cn(
-                  'truncate text-base font-bold',
+                  'truncate text-base font-medium',
                   value ? 'text-navy' : 'text-muted-foreground',
                 )}
               >

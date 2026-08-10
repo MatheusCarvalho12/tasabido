@@ -19,7 +19,7 @@ export function RedeApoioChips({ value, onValueChange }: RedeApoioChipsProps) {
       value={value}
       onValueChange={(values) => onValueChange(values as PapelFamiliar[])}
       aria-label="Quem mais participa do cuidado"
-      className="grid w-full grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3"
+      className="grid w-full grid-cols-2 gap-3 sm:gap-4"
     >
       {PAPEIS_FAMILIARES.map((option) => (
         <AvatarChip key={option.id} option={option} size="sm" />
