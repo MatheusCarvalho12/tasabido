@@ -94,4 +94,8 @@
 | **Observabilidade** | |
 | Sentry SDK | 2.66.1 |
 
+## Contratos
+
+- Cadastro profissional: conselho com região por tipo (`council_region` — UF para CRM/CRO, numérica para CRP/CREFITO/CRFa) + validação real por conselho (migrations 0005/0006).
+
 SemVer. Estado atual 0.0.0; primeira fatia funcional aprovada inicia 0.1.0; cada squash aprovado atualiza versão e changelog.
