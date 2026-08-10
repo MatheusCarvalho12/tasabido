@@ -21,8 +21,7 @@ import {
 import { useCadastroStore } from '@/stores/useCadastroStore'
 
 const GRID = 'col-span-12'
-const GRID_CPF = 'col-span-12 lg:col-span-4'
-const GRID_TELEFONE = 'col-span-12 lg:col-span-4'
+const GRID_CPF = 'col-span-12 lg:col-span-8'
 const GRID_IDADE = 'col-span-12 lg:col-span-4'
 const GRID_SENHA = 'col-span-12 lg:col-span-6'
 
@@ -42,7 +41,8 @@ const TELEFONE_MASK: MaskOptions = {
 
 /**
  * Passo 2 do cadastro familiar — "Sobre você". Formulário em grid:
- * nome (total), telefone 2/3 + idade 1/3, e-mail (total), senha + confirmação 1/2.
+ * nome (total), CPF 2/3 + idade 1/3, telefone (total), e-mail (total),
+ * senha + confirmação 1/2 — 5 linhas no desktop.
  */
 export function CadastroSobrePage() {
   const navigate = useNavigate()
@@ -139,7 +139,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_CPF} order-2 lg:order-2`}>
+            <div className={`${GRID} ${GRID_CPF} order-2`}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -175,7 +175,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_TELEFONE} order-3 lg:order-3`}>
+            <div className={`${GRID} order-4`}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -204,7 +204,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} order-4 lg:order-5`}>
+            <div className={`${GRID} order-5`}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -235,7 +235,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_IDADE} order-5 lg:order-4`}>
+            <div className={`${GRID} ${GRID_IDADE} order-3`}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
@@ -264,7 +264,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_SENHA} order-6 lg:order-6`}>
+            <div className={`${GRID} ${GRID_SENHA} order-6`}>
               <Field data-invalid={field.state.meta.errors.length > 0}>
                 <FieldLabel htmlFor={field.name} className="sr-only">
                   Senha
@@ -299,7 +299,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_SENHA} order-7 lg:order-7`}>
+            <div className={`${GRID} ${GRID_SENHA} order-7`}>
               <Field data-invalid={field.state.meta.errors.length > 0}>
                 <FieldLabel htmlFor={field.name} className="sr-only">
                   Confirmar senha
