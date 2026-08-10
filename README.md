@@ -23,6 +23,9 @@
 | @tanstack/react-table | 9.1.2 |
 | @tanstack/react-virtual | 3.14.9 |
 | Zustand | 5.0.14 |
+| Zod plugins: cpf-cnpj-validator | 2.1.2 |
+| @react-input/mask | 2.0.4 |
+| libphonenumber-js | 1.13.10 |
 | **UI, ícones e motion** | |
 | @base-ui/react | 1.7.0 |
 | shadcn CLI | 4.16.2 |
@@ -31,6 +34,7 @@
 | Motion | 13.0.0 |
 | @phosphor-icons/react | 2.1.10 |
 | @fontsource-variable/baloo-2 | 5.3.0 |
+| react-day-picker | 10.0.1 |
 | **Gráficos e 3D** | |
 | Nivo | 0.99.0 |
 | @react-three/fiber | 9.7.0 |
@@ -76,6 +80,8 @@
 | **Auth e segurança** | |
 | pwdlib (Argon2) | 0.3.0 |
 | PyJWT | 2.13.0 |
+| validate-docbr | 2.0.0 |
+| phonenumbers | 9.0.36 |
 | pip-audit | 2.10.1 |
 | **Testes e qualidade** | |
 | pytest | 9.1.1 |
