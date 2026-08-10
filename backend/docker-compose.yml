@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:18
+    container_name: tasabido-db
+    environment:
+      POSTGRES_DB: tasabido
+      POSTGRES_USER: tasabido
+      POSTGRES_PASSWORD: tasabido
+    ports:
+      - "5432:5432"
+    volumes:
+      - tasabido_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tasabido -d tasabido"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  tasabido_pgdata:
