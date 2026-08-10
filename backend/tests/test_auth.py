@@ -28,7 +28,7 @@ def _register(
                 "profession": "psicologo",
                 "council_type": "crp",
                 "council_number": "12345",
-                "council_uf": "sp",
+                "council_region": "06",
             }
         )
     if role is not None:
@@ -60,7 +60,7 @@ def _user_with_children(email: str) -> dict[str, Any]:
             "profession": user.profession,
             "council_type": user.council_type,
             "council_number": user.council_number,
-            "council_uf": user.council_uf,
+            "council_region": user.council_region,
             "cnpj": user.cnpj,
             "specialties": user.specialties,
             "age_groups": user.age_groups,
@@ -765,7 +765,7 @@ def test_register_professional_without_lgpd_consent_422(client: TestClient) -> N
             "profession": "psicologo",
             "council_type": "crp",
             "council_number": "12345",
-            "council_uf": "SP",
+            "council_region": "06",
             "cpf": "52998224725",
             "cep": "01310100",
         },
@@ -798,7 +798,7 @@ def _professional_payload(**extra: Any) -> dict[str, Any]:
         "profession": "psicologo",
         "council_type": "crp",
         "council_number": "12345",
-        "council_uf": "sp",
+        "council_region": "06",
         "cpf": "52998224725",
         "lgpd_consent": True,
     }
@@ -838,25 +838,29 @@ def test_register_professional_without_council_number_422(client: TestClient) ->
     )
 
 
-def test_register_professional_without_council_uf_422(client: TestClient) -> None:
+def test_register_professional_without_council_region_422(client: TestClient) -> None:
     response = client.post(
         "/auth/register",
-        json=_professional_payload(council_uf=None),
+        json=_professional_payload(council_region=None),
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "A UF do conselho é obrigatória para o papel professional"
+    assert response.json()["detail"] == (
+        "A região do conselho é obrigatória para o papel professional"
+    )
 
 
-def test_register_professional_invalid_council_uf_422(client: TestClient) -> None:
-    for bad_uf in ["SPX", "S", "BR", "xx"]:
+def test_register_professional_invalid_council_region_422(client: TestClient) -> None:
+    for bad_region in ["00", "24", "SP", "0"]:
         response = client.post(
             "/auth/register",
-            json=_professional_payload(council_uf=bad_uf),
+            json=_professional_payload(council_region=bad_region),
         )
 
         assert response.status_code == 422
-        assert response.json()["detail"] == "UF inválida"
+        assert (
+            response.json()["detail"] == "Região do CRP inválida — informe um número entre 01 e 23"
+        )
 
 
 def test_register_professional_short_council_number_422(client: TestClient) -> None:
@@ -866,7 +870,7 @@ def test_register_professional_short_council_number_422(client: TestClient) -> N
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == ("O número do conselho precisa ter entre 2 e 20 caracteres")
+    assert response.json()["detail"] == "Número do CRP inválido — use de 4 a 6 dígitos (ex.: 12345)"
 
 
 def test_register_professional_invalid_cnpj_422(client: TestClient) -> None:
@@ -908,8 +912,8 @@ def test_register_professional_complete_201_persists_everything(client: TestClie
         role="professional",
         profession="neuropediatra",
         council_type="crm",
-        council_number="CRM-SP 123456",
-        council_uf="SP",
+        council_number="1234567",
+        council_region="SP",
         cnpj="11.222.333/0001-81",
         specialties=["tea", "  Transtorno do Processamento Auditivo  ", "tdah"],
         age_groups=["0-3", "4-6", "7-10"],
@@ -919,15 +923,15 @@ def test_register_professional_complete_201_persists_everything(client: TestClie
     assert body["user"]["role"] == "professional"
     assert body["user"]["profession"] == "neuropediatra"
     assert body["user"]["council_type"] == "crm"
-    assert body["user"]["council_number"] == "CRM-SP 123456"
-    assert body["user"]["council_uf"] == "SP"
+    assert body["user"]["council_number"] == "1234567"
+    assert body["user"]["council_region"] == "SP"
     # CNPJ normalizado: pontuação removida, só dígitos persistidos e devolvidos.
     assert body["user"]["cnpj"] == "11222333000181"
     stored = _user_with_children("procompleto@example.com")
     assert stored["profession"] == "neuropediatra"
     assert stored["council_type"] == "crm"
-    assert stored["council_number"] == "CRM-SP 123456"
-    assert stored["council_uf"] == "SP"
+    assert stored["council_number"] == "1234567"
+    assert stored["council_region"] == "SP"
     assert stored["cnpj"] == "11222333000181"
     # Enum conhecido passa direto; custom é persistida sem os espaços do trim.
     assert stored["specialties"] == ["tea", "Transtorno do Processamento Auditivo", "tdah"]
@@ -1012,8 +1016,99 @@ def test_me_returns_professional_fields(client: TestClient) -> None:
     user = response.json()["user"]
     assert user["profession"] == "psicologo"
     assert user["council_type"] == "crp"
-    assert user["council_uf"] == "SP"
+    assert user["council_region"] == "06"
     assert user["cnpj"] == "11222333000181"
     assert user["specialties"] == ["tea"]
     assert user["age_groups"] == ["7-10"]
     assert user["service_modes"] == ["online"]
+
+
+# --- Conselho: região e número validados por conselho (contrato 2026-08-10) ---
+
+
+def test_register_professional_council_happy_paths_201(client: TestClient) -> None:
+    cases = [
+        # (email, council_type, number, region enviada, region esperada, cpf)
+        ("crm-ok@example.com", "crm", "1234567", "sp", "SP", "07167959901"),
+        ("crp-ok@example.com", "crp", "12345", "6", "06", "12379641137"),
+        ("crefito-ok@example.com", "crefito", "123456-F", "3", "3", "24320626397"),
+        ("crefito-to@example.com", "crefito", "123456-TO", "21", "21", "26064432926"),
+        ("crfa-ok@example.com", "crfa", "2-12345", "2", "2", "41781976490"),
+        ("crfa-puro@example.com", "crfa", "12345", "9", "9", "44305740575"),
+        ("cro-ok@example.com", "cro", "12345", "rj", "RJ", "50275082717"),
+        ("outro-ok@example.com", "outro", "1234567890", "sp", "SP", "59845686591"),
+    ]
+    for email, council_type, number, region, expected_region, cpf in cases:
+        body = _register(
+            client,
+            email=email,
+            role="professional",
+            cpf=cpf,
+            council_type=council_type,
+            council_number=number,
+            council_region=region,
+        )
+
+        assert body["user"]["council_type"] == council_type
+        assert body["user"]["council_number"] == number
+        assert body["user"]["council_region"] == expected_region
+
+
+def test_register_professional_council_errors_422(client: TestClient) -> None:
+    cases = [
+        # (council_type, number, region, mensagem amigável)
+        (
+            "crm",
+            "123",
+            "SP",
+            "Número do CRM inválido — use de 4 a 7 dígitos (ex.: 1234567)",
+        ),
+        (
+            "crm",
+            "12345678",
+            "SP",
+            "Número do CRM inválido — use de 4 a 7 dígitos (ex.: 1234567)",
+        ),
+        ("crm", "12345", "XX", "Região do conselho inválida — informe uma UF válida (ex.: SP)"),
+        ("crp", "12", "06", "Número do CRP inválido — use de 4 a 6 dígitos (ex.: 12345)"),
+        ("crp", "1234567", "06", "Número do CRP inválido — use de 4 a 6 dígitos (ex.: 12345)"),
+        ("crp", "12345", "24", "Região do CRP inválida — informe um número entre 01 e 23"),
+        (
+            "crefito",
+            "123456-X",
+            "3",
+            "Número do CREFITO inválido — use de 4 a 6 dígitos, com sufixo opcional -F ou -TO "
+            "(ex.: 123456-F)",
+        ),
+        ("crefito", "12345", "22", "Região do CREFITO inválida — informe um número entre 1 e 21"),
+        (
+            "crfa",
+            "12-123",
+            "2",
+            "Número do CRFa inválido — use 4 a 6 dígitos ou o formato região-número (ex.: 2-12345)",
+        ),
+        (
+            "crfa",
+            "1234567",
+            "2",
+            "Número do CRFa inválido — use 4 a 6 dígitos ou o formato região-número (ex.: 2-12345)",
+        ),
+        ("crfa", "12345", "10", "Região do CRFa inválida — informe um número entre 1 e 9"),
+        ("cro", "123", "SP", "Número do CRO inválido — use de 4 a 6 dígitos (ex.: 12345)"),
+        ("cro", "12345", "ZZ", "Região do conselho inválida — informe uma UF válida (ex.: SP)"),
+        ("outro", "123", "SP", "Número do conselho inválido — use de 4 a 10 dígitos"),
+        ("outro", "12345678901", "SP", "Número do conselho inválido — use de 4 a 10 dígitos"),
+    ]
+    for index, (council_type, number, region, message) in enumerate(cases):
+        response = client.post(
+            "/auth/register",
+            json=_professional_payload(
+                email=f"erro-conselho-{index}@example.com",
+                council_type=council_type,
+                council_number=number,
+                council_region=region,
+            ),
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == message

@@ -96,12 +96,12 @@ def _apply_professional_data(user: User, payload: RegisterRequest) -> None:
     assert payload.profession is not None
     assert payload.council_type is not None
     assert payload.council_number is not None
-    assert payload.council_uf is not None
+    assert payload.council_region is not None
     assert payload.cpf is not None
     user.profession = payload.profession.value
     user.council_type = payload.council_type.value
     user.council_number = payload.council_number
-    user.council_uf = payload.council_uf
+    user.council_region = payload.council_region
     user.cnpj = payload.cnpj
     user.cpf = payload.cpf
     user.specialties = list(payload.specialties)

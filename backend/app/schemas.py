@@ -176,21 +176,64 @@ _BRAZILIAN_UFS = frozenset(
 )
 
 
-def _validate_council_uf(value: str | None) -> str | None:
-    if value is None:
-        return None
-    uf = value.strip().upper()
-    if uf not in _BRAZILIAN_UFS:
-        raise ValueError("UF inválida")
-    return uf
+# Região numérica dos conselhos regionais (CRP 01–23, CREFITO 1–21, CRFa 1–9):
+# 1 ou 2 dígitos; o intervalo válido depende do conselho.
+_REGION_NUMBER_PATTERN = re.compile(r"^\d{1,2}$")
+# Número do registro por conselho — padrões idênticos aos do front.
+_NUMBER_PATTERNS: dict[CouncilType, re.Pattern[str]] = {
+    CouncilType.CRM: re.compile(r"^\d{4,7}$"),
+    CouncilType.CRP: re.compile(r"^\d{4,6}$"),
+    CouncilType.CREFITO: re.compile(r"^\d{4,6}(?:-(?:F|TO))?$"),
+    CouncilType.CRFA: re.compile(r"^(?:\d{4,6}|\d{1,2}-\d{4,6})$"),
+    CouncilType.CRO: re.compile(r"^\d{4,6}$"),
+    CouncilType.OUTRO: re.compile(r"^\d{4,10}$"),
+}
+# Erro amigável em pt-BR citando o conselho (mesma regra do front).
+_COUNCIL_NUMBER_ERRORS: dict[CouncilType, str] = {
+    CouncilType.CRM: "Número do CRM inválido — use de 4 a 7 dígitos (ex.: 1234567)",
+    CouncilType.CRP: "Número do CRP inválido — use de 4 a 6 dígitos (ex.: 12345)",
+    CouncilType.CREFITO: (
+        "Número do CREFITO inválido — use de 4 a 6 dígitos, com sufixo opcional -F ou -TO "
+        "(ex.: 123456-F)"
+    ),
+    CouncilType.CRFA: (
+        "Número do CRFa inválido — use 4 a 6 dígitos ou o formato região-número (ex.: 2-12345)"
+    ),
+    CouncilType.CRO: "Número do CRO inválido — use de 4 a 6 dígitos (ex.: 12345)",
+    CouncilType.OUTRO: "Número do conselho inválido — use de 4 a 10 dígitos",
+}
 
 
-def _validate_council_number(value: str | None) -> str | None:
-    if value is None:
-        return None
+def _validate_council_region(value: str | None, council_type: CouncilType | None) -> str | None:
+    """Região do conselho conforme o conselho: UF (crm/cro/outro) ou número (crp/crefito/crfa)."""
+    if value is None or council_type is None:
+        return value
+    region = value.strip().upper()
+    if council_type in (CouncilType.CRM, CouncilType.CRO, CouncilType.OUTRO):
+        if region not in _BRAZILIAN_UFS:
+            raise ValueError("Região do conselho inválida — informe uma UF válida (ex.: SP)")
+        return region
+    if council_type is CouncilType.CRP:
+        if _REGION_NUMBER_PATTERN.fullmatch(region) is None or not 1 <= int(region) <= 23:
+            raise ValueError("Região do CRP inválida — informe um número entre 01 e 23")
+        # Normaliza "1" → "01" (padrão oficial do CRP).
+        return region.zfill(2)
+    if council_type is CouncilType.CREFITO:
+        if _REGION_NUMBER_PATTERN.fullmatch(region) is None or not 1 <= int(region) <= 21:
+            raise ValueError("Região do CREFITO inválida — informe um número entre 1 e 21")
+        return region
+    if _REGION_NUMBER_PATTERN.fullmatch(region) is None or not 1 <= int(region) <= 9:
+        raise ValueError("Região do CRFa inválida — informe um número entre 1 e 9")
+    return region
+
+
+def _validate_council_number(value: str | None, council_type: CouncilType | None) -> str | None:
+    """Número do registro conforme o conselho (padrões idênticos aos do front)."""
+    if value is None or council_type is None:
+        return value
     number = value.strip()
-    if len(number) < 2 or len(number) > 20:
-        raise ValueError("O número do conselho precisa ter entre 2 e 20 caracteres")
+    if _NUMBER_PATTERNS[council_type].fullmatch(number) is None:
+        raise ValueError(_COUNCIL_NUMBER_ERRORS[council_type])
     return number
 
 
@@ -284,7 +327,7 @@ class RegisterRequest(BaseModel):
     profession: ProfessionType | None = None
     council_type: CouncilType | None = None
     council_number: str | None = None
-    council_uf: str | None = None
+    council_region: str | None = None
     cnpj: str | None = None
     specialties: list[SpecialtyValue] = Field(default_factory=list)
     age_groups: list[AgeGroup] = Field(default_factory=list)
@@ -320,16 +363,6 @@ class RegisterRequest(BaseModel):
     def _cep_valid(cls, value: str | None) -> str | None:
         return _validate_cep(value) if value is not None else None
 
-    @field_validator("council_number")
-    @classmethod
-    def _council_number_valid(cls, value: str | None) -> str | None:
-        return _validate_council_number(value)
-
-    @field_validator("council_uf")
-    @classmethod
-    def _council_uf_valid(cls, value: str | None) -> str | None:
-        return _validate_council_uf(value)
-
     @field_validator("cnpj")
     @classmethod
     def _cnpj_valid(cls, value: str | None) -> str | None:
@@ -339,6 +372,14 @@ class RegisterRequest(BaseModel):
     @classmethod
     def _specialties_count_valid(cls, value: list[str]) -> list[str]:
         return _validate_tag_count(value, "especialidades")
+
+    @model_validator(mode="after")
+    def council_format_valid(self) -> Self:
+        # Valida número e região conforme o conselho escolhido (None quando o
+        # papel não usa conselho — a obrigatoriedade é do professional_fields_required).
+        self.council_number = _validate_council_number(self.council_number, self.council_type)
+        self.council_region = _validate_council_region(self.council_region, self.council_type)
+        return self
 
     @model_validator(mode="after")
     def family_fields_required(self) -> Self:
@@ -360,8 +401,8 @@ class RegisterRequest(BaseModel):
                 raise ValueError("O conselho é obrigatório para o papel professional")
             if self.council_number is None:
                 raise ValueError("O número do conselho é obrigatório para o papel professional")
-            if self.council_uf is None:
-                raise ValueError("A UF do conselho é obrigatória para o papel professional")
+            if self.council_region is None:
+                raise ValueError("A região do conselho é obrigatória para o papel professional")
             if self.cpf is None:
                 raise ValueError("O CPF é obrigatório para o papel professional")
             if self.lgpd_consent is not True:
@@ -390,7 +431,7 @@ class UserOut(BaseModel):
     profession: str | None
     council_type: str | None
     council_number: str | None
-    council_uf: str | None
+    council_region: str | None
     cnpj: str | None
     specialties: list[str]
     age_groups: list[str]
