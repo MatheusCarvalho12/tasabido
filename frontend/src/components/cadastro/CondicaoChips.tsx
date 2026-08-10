@@ -57,11 +57,11 @@ function IconeCondicao({ id, className }: { id: Condicao; className: string }) {
 }
 
 /** Classe comum de todos os chips (padrão e custom) — sem vazar conteúdo. */
-const CLASSE_CHIP =
+export const CLASSE_CHIP =
   'group relative flex h-auto min-w-0 w-full items-center gap-2.5 rounded-2xl border-2 border-transparent bg-white px-4 py-3 shadow-clay-white transition-[transform,border-color,background-color,box-shadow] hover:-translate-y-0.5 hover:border-blue/50 hover:shadow-clay-sm focus-visible:border-blue focus-visible:ring-3 focus-visible:ring-blue/30 active:translate-y-0 data-pressed:border-blue data-pressed:bg-blue/10 data-pressed:shadow-clay-sm'
 
 /** Rótulos quebram em até 2 linhas (o toggle do Base UI força nowrap — corrigir aqui). */
-const CLASSE_TEXTO_CHIP =
+export const CLASSE_TEXTO_CHIP =
   'min-w-0 whitespace-normal text-sm font-bold leading-tight text-navy sm:text-base'
 
 interface CondicaoChipsProps {

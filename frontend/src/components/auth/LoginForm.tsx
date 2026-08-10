@@ -22,6 +22,8 @@ export interface LoginFormProps {
   emailPlaceholder?: string
   /** Rótulo do botão de criar conta (ex.: "Criar conta profissional"). */
   createAccountLabel?: string
+  /** Rota do botão de criar conta (profissional → /cadastro/profissional). */
+  createAccountTo?: string
 }
 
 interface LoginVariables {
@@ -47,6 +49,7 @@ export function LoginForm({
   authRole,
   emailPlaceholder = 'E-mail',
   createAccountLabel = 'Criar conta',
+  createAccountTo = '/cadastro',
 }: LoginFormProps) {
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -221,7 +224,7 @@ export function LoginForm({
 
       <Button
         type="button"
-        render={<Link to="/cadastro" />}
+        render={<Link to={createAccountTo} />}
         variant="outline"
         className="h-14 w-full rounded-full border-transparent bg-white text-lg font-bold text-turquoise-dark shadow-clay-white transition-[transform,box-shadow] hover:-translate-y-0.5 hover:bg-white hover:text-turquoise-dark active:translate-y-0"
       >

@@ -10,6 +10,10 @@ import { getToken } from '@/lib/auth'
 import { CadastroFamiliaPage } from '@/pages/CadastroFamiliaPage'
 import { CadastroFinalizarPage } from '@/pages/CadastroFinalizarPage'
 import { CadastroPage } from '@/pages/CadastroPage'
+import { CadastroProfissionalAtuacaoPage } from '@/pages/CadastroProfissionalAtuacaoPage'
+import { CadastroProfissionalFinalizarPage } from '@/pages/CadastroProfissionalFinalizarPage'
+import { CadastroProfissionalPage } from '@/pages/CadastroProfissionalPage'
+import { CadastroProfissionalSobrePage } from '@/pages/CadastroProfissionalSobrePage'
 import { CadastroSobrePage } from '@/pages/CadastroSobrePage'
 import { ForgotPasswordStubPage } from '@/pages/ForgotPasswordStubPage'
 import { HomePage } from '@/pages/HomePage'
@@ -78,6 +82,30 @@ const signupFinalizarRoute = createRoute({
   component: CadastroFinalizarPage,
 })
 
+const signupProfissionalRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/cadastro/profissional',
+  component: CadastroProfissionalPage,
+})
+
+const signupProfissionalSobreRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/cadastro/profissional/sobre',
+  component: CadastroProfissionalSobrePage,
+})
+
+const signupProfissionalAtuacaoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/cadastro/profissional/atuacao',
+  component: CadastroProfissionalAtuacaoPage,
+})
+
+const signupProfissionalFinalizarRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/cadastro/profissional/finalizar',
+  component: CadastroProfissionalFinalizarPage,
+})
+
 const forgotPasswordRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/esqueci-senha',
@@ -98,6 +126,10 @@ const routeTree = rootRoute.addChildren([
   signupSobreRoute,
   signupFamiliaRoute,
   signupFinalizarRoute,
+  signupProfissionalRoute,
+  signupProfissionalSobreRoute,
+  signupProfissionalAtuacaoRoute,
+  signupProfissionalFinalizarRoute,
   forgotPasswordRoute,
   privacyRoute,
 ])

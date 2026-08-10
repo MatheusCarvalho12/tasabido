@@ -4,6 +4,7 @@ import { CadastroWizardLayout } from '@/components/cadastro/CadastroWizardLayout
 import { PapelGrid } from '@/components/cadastro/PapelGrid'
 import { PAPEIS_FAMILIARES } from '@/components/cadastro/papeis'
 import { useCadastroStore } from '@/stores/useCadastroStore'
+import type { PapelFamiliar } from '@/types/cadastro'
 
 export function CadastroPage() {
   const navigate = useNavigate()
@@ -24,7 +25,11 @@ export function CadastroPage() {
       continueDisabled={!papel}
       onContinue={handleContinuar}
     >
-      <PapelGrid value={papel} onValueChange={setPapel} options={PAPEIS_FAMILIARES} />
+      <PapelGrid
+        value={papel}
+        onValueChange={(value) => setPapel(value as PapelFamiliar)}
+        options={PAPEIS_FAMILIARES}
+      />
     </CadastroWizardLayout>
   )
 }

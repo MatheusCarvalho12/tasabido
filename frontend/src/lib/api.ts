@@ -3,6 +3,7 @@ import { createClient } from '@hey-api/client-fetch'
 import { getToken } from '@/lib/auth'
 import type { ApiErrorBody, LoginRequest, LoginResponse, MeResponse, User } from '@/types/auth'
 import type { RegisterRequest, RegisterResponse } from '@/types/cadastro'
+import type { RegisterProfessionalRequest } from '@/types/cadastro-profissional'
 
 export const apiClient = createClient({
   baseUrl: 'http://localhost:8000',
@@ -29,7 +30,10 @@ export async function loginApi(body: LoginRequest): Promise<LoginResponse> {
   return data
 }
 
-export async function registerApi(body: RegisterRequest): Promise<RegisterResponse> {
+/** Corpo do POST /auth/register: papel família ou profissional. */
+export type RegisterPayload = RegisterRequest | RegisterProfessionalRequest
+
+export async function registerApi(body: RegisterPayload): Promise<RegisterResponse> {
   const { data, error, response } = await apiClient.post<RegisterResponse, ApiErrorBody>({
     url: '/auth/register',
     body,

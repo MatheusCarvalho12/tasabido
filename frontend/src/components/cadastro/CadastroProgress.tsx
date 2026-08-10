@@ -1,12 +1,13 @@
 import { Check } from '@phosphor-icons/react'
 
+import { PASSOS_CADASTRO_FAMILIA } from '@/lib/cadastro'
 import { cn } from '@/lib/utils'
-
-const PASSOS = ['Quem é você?', 'Sobre você', 'Sua família', 'Finalizar']
 
 interface CadastroProgressProps {
   /** Passo ativo, 1-based. Passos anteriores aparecem com check. */
   currentStep: number
+  /** Rótulos dos 4 passos (o cadastro profissional usa os seus próprios). */
+  steps?: string[]
 }
 
 /**
@@ -14,10 +15,13 @@ interface CadastroProgressProps {
  * Concluído: check (turquesa no mobile, azul no desktop). Ativo: azul com número.
  * A linha fica azul até o passo atual e cinza depois (mockup).
  */
-export function CadastroProgress({ currentStep }: CadastroProgressProps) {
+export function CadastroProgress({
+  currentStep,
+  steps = PASSOS_CADASTRO_FAMILIA,
+}: CadastroProgressProps) {
   return (
     <ol className="flex w-full items-start" aria-label="Progresso do cadastro">
-      {PASSOS.map((label, index) => {
+      {steps.map((label, index) => {
         const step = index + 1
         const concluido = step < currentStep
         const ativo = step === currentStep

@@ -2,6 +2,9 @@ import type { MaskOptions } from '@react-input/mask'
 
 import type { Condicao, PapelFamiliar, RegisterRequest } from '@/types/cadastro'
 
+/** Rótulos dos 4 passos do cadastro familiar (mockup aprovado). */
+export const PASSOS_CADASTRO_FAMILIA = ['Quem é você?', 'Sobre você', 'Sua família', 'Finalizar']
+
 /** Máscara fixa de CPF: 000.000.000-00 (11 dígitos). */
 export const CPF_MASK: MaskOptions = {
   mask: '___.___.___-__',
@@ -12,6 +15,20 @@ export const CPF_MASK: MaskOptions = {
 export const CEP_MASK: MaskOptions = {
   mask: '_____-___',
   replacement: { _: /\d/ },
+}
+
+/**
+ * Máscara dinâmica do telefone: (XX) XXXX-XXXX para fixo (10 dígitos) e
+ * (XX) XXXXX-XXXX para celular (11 dígitos) — trocada antes de cada entrada.
+ */
+export const TELEFONE_MASK: MaskOptions = {
+  mask: '(__) ____-____',
+  replacement: { _: /\d/ },
+  modify: ({ value, data, inputType }) => {
+    const entrada = inputType === 'insert' ? (data ?? '') : ''
+    const digitos = `${value}${entrada}`.replace(/\D/g, '').length
+    return { mask: digitos > 10 ? '(__) _____-____' : '(__) ____-____' }
+  },
 }
 
 /** Rótulos humanizados das condições (ordem do mockup). */

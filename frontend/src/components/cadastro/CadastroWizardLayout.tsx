@@ -24,12 +24,22 @@ interface CadastroWizardLayoutProps {
   continueLabel?: string
   continueDisabled?: boolean
   onContinue?: () => void
+  /** Rótulos dos 4 passos (profissional usa os seus próprios). */
+  steps?: string[]
+  /** Cena exibida à direita (família por padrão; profissional passa a sua). */
+  sceneSrc?: string
+  sceneAlt?: string
+  /** Rótulo longo do selo "Feito com carinho" (famílias / profissionais). */
+  trustLabel?: string
+  /** Rota do link "Já tenho conta" (login familiar / profissional). */
+  loginTo?: string
 }
 
 /**
- * Estrutura comum das telas do cadastro familiar (mockup aprovado):
+ * Estrutura comum das telas de cadastro (mockup aprovado):
  * blobs decorativos, painel clay, coluna esquerda com fluxo e coluna
- * direita com a cena da família + balão do mascote no desktop.
+ * direita com a cena + balão do mascote no desktop. Parâmetros extras
+ * (steps, cena, selos, login) permitem o fluxo profissional sem duplicar.
  */
 export function CadastroWizardLayout({
   currentStep,
@@ -41,6 +51,11 @@ export function CadastroWizardLayout({
   continueLabel,
   continueDisabled,
   onContinue,
+  steps,
+  sceneSrc = cenaFamilia,
+  sceneAlt = 'Pai, mãe, criança e o mascote Sabidinho em um abraço acolhedor',
+  trustLabel = 'Feito com carinho para famílias',
+  loginTo = '/login',
 }: CadastroWizardLayoutProps) {
   return (
     <div className="relative min-h-dvh overflow-hidden bg-cream text-navy">
@@ -64,13 +79,13 @@ export function CadastroWizardLayout({
 
               <CadastroHeader title={title} subtitle={subtitle} />
 
-              <CadastroProgress currentStep={currentStep} />
+              <CadastroProgress currentStep={currentStep} steps={steps} />
 
               {/* Mobile: a cena fica entre o progresso e o conteúdo (mockup) */}
               <div className="lg:hidden">
                 <AuthScene
-                  src={cenaFamilia}
-                  alt="Pai, mãe, criança e o mascote Sabidinho em um abraço acolhedor"
+                  src={sceneSrc}
+                  alt={sceneAlt}
                   className="mx-auto w-full max-w-72 sm:max-w-80"
                 />
               </div>
@@ -84,7 +99,7 @@ export function CadastroWizardLayout({
 
               <div className="flex w-full flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <Link
-                  to="/login"
+                  to={loginTo}
                   className="order-2 text-base font-bold whitespace-nowrap text-blue underline decoration-blue/40 underline-offset-4 transition-colors hover:decoration-blue lg:order-1 lg:text-lg"
                 >
                   Já tenho conta
@@ -97,17 +112,13 @@ export function CadastroWizardLayout({
                 />
               </div>
 
-              <TrustBadges align="center" desktopHeartLabel="Feito com carinho para famílias" />
+              <TrustBadges align="center" desktopHeartLabel={trustLabel} />
             </div>
 
-            {/* Desktop: cena da família + balão ancorado no mascote (mockup) */}
+            {/* Desktop: cena + balão ancorado no mascote (mockup) */}
             <div className="relative hidden items-center justify-center p-6 lg:flex xl:p-10">
               <div className="relative w-full max-w-[540px]">
-                <AuthScene
-                  src={cenaFamilia}
-                  alt="Pai, mãe, criança e o mascote Sabidinho em um abraço acolhedor"
-                  className="w-full"
-                />
+                <AuthScene src={sceneSrc} alt={sceneAlt} className="w-full" />
                 <MascotSpeechBubble
                   text={bubbleText}
                   tail="bottom"

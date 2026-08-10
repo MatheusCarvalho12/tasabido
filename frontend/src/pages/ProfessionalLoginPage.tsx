@@ -42,6 +42,7 @@ export function ProfessionalLoginPage() {
                 authRole="professional"
                 emailPlaceholder="E-mail profissional"
                 createAccountLabel="Criar conta profissional"
+                createAccountTo="/cadastro/profissional"
                 onLoggedIn={handleLoggedIn}
               />
               <TrustBadges

@@ -1,17 +1,16 @@
-import { Envelope, IdentificationCard, MapPin, Phone, User } from '@phosphor-icons/react'
+import { Envelope, IdentificationCard, Phone, User } from '@phosphor-icons/react'
 import { useForm, useStore } from '@tanstack/react-form'
 import { useNavigate } from '@tanstack/react-router'
-import { useRef, useState } from 'react'
 
+import cenaProfissional from '@/assets/cena-profissional.png'
 import { PasswordField } from '@/components/auth/PasswordField'
 import { CadastroTextField } from '@/components/cadastro/CadastroTextField'
 import { CadastroWizardLayout } from '@/components/cadastro/CadastroWizardLayout'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Field, FieldContent, FieldError, FieldLabel } from '@/components/ui/field'
-import { CEP_MASK, CPF_MASK, TELEFONE_MASK } from '@/lib/cadastro'
+import { CPF_MASK, TELEFONE_MASK } from '@/lib/cadastro'
+import { PASSOS_CADASTRO_PROFISSIONAL } from '@/lib/cadastro-profissional'
 import {
-  sobreVoceSchema,
-  validateCep,
   validateCpf,
   validateDataNascimento,
   validateEmail,
@@ -20,62 +19,30 @@ import {
   validatePasswordMatch,
   validatePhone,
 } from '@/lib/validation'
-import { useCadastroStore } from '@/stores/useCadastroStore'
+import { sobreProfissionalComConfirmacaoSchema } from '@/lib/validation-profissional'
+import { useCadastroProfissionalStore } from '@/stores/useCadastroProfissionalStore'
 
 const GRID = 'col-span-12'
 const GRID_METADE = 'col-span-12 lg:col-span-6'
 
 /**
- * Passo 2 do cadastro familiar — "Sobre você". Formulário em grid de 12 colunas
- * no desktop (1 coluna no mobile): nome (total), CPF 1/2 + data de nascimento
- * 1/2, CEP 1/2 + telefone 1/2, e-mail (total), senha + confirmação 1/2.
- * Ao sair do CEP válido, consulta o ViaCEP e mostra "Cidade, UF" (sem preencher
- * o endereço — fora de escopo); falha de busca é silenciosa.
+ * Passo 2 do cadastro profissional — "Sobre você". MESMO layout do cadastro
+ * familiar (reuso): nome cheio, CPF 1/2 + data de nascimento 1/2, telefone
+ * cheio, e-mail cheio, senha + confirmação 1/2. Sem CEP (fluxo profissional).
  */
-export function CadastroSobrePage() {
+export function CadastroProfissionalSobrePage() {
   const navigate = useNavigate()
-  const setSobre = useCadastroStore((state) => state.setSobre)
-
-  /** Cidade + UF resolvidos pelo ViaCEP após o blur do CEP. */
-  const [cidadeCep, setCidadeCep] = useState<string | null>(null)
-  /** Sequência da última consulta: respostas antigas do ViaCEP são ignoradas. */
-  const consultaSeq = useRef(0)
-
-  const consultarCep = async (valor: string) => {
-    const digitos = valor.replace(/\D/g, '')
-    if (digitos.length !== 8) {
-      return
-    }
-    const seq = ++consultaSeq.current
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${digitos}/json`)
-      if (!response.ok) {
-        return
-      }
-      const dados = (await response.json()) as {
-        erro?: boolean
-        localidade?: string
-        uf?: string
-      }
-      if (seq !== consultaSeq.current || dados.erro || !dados.localidade || !dados.uf) {
-        return
-      }
-      setCidadeCep(`${dados.localidade}, ${dados.uf}`)
-    } catch {
-      // Busca falhou (offline, timeout…) — silencioso, sem erro bloqueante.
-    }
-  }
+  const setSobre = useCadastroProfissionalStore((state) => state.setSobre)
 
   const form = useForm({
     defaultValues: (() => {
-      const state = useCadastroStore.getState()
+      const state = useCadastroProfissionalStore.getState()
       return {
         nome: state.nome,
         cpf: state.cpf,
+        dataNascimento: state.dataNascimento,
         telefone: state.telefone,
         email: state.email,
-        dataNascimento: state.dataNascimento,
-        cep: state.cep,
         senha: state.senha,
         confirmarSenha: state.senha,
       }
@@ -84,20 +51,19 @@ export function CadastroSobrePage() {
       setSobre({
         nome: value.nome,
         cpf: value.cpf,
+        dataNascimento: value.dataNascimento,
         telefone: value.telefone,
         email: value.email,
-        dataNascimento: value.dataNascimento,
-        cep: value.cep,
         senha: value.senha,
       })
-      void navigate({ to: '/cadastro/familia' })
+      void navigate({ to: '/cadastro/profissional/atuacao' })
     },
   })
 
   /** Passo válido de verdade (schema zod) → habilita o botão Continuar. */
   const passoValido = useStore(
     form.store,
-    (state) => sobreVoceSchema.safeParse(state.values).success,
+    (state) => sobreProfissionalComConfirmacaoSchema.safeParse(state.values).success,
   )
 
   return (
@@ -105,12 +71,17 @@ export function CadastroSobrePage() {
       currentStep={2}
       title="Sobre você"
       subtitle="Conta pra gente quem é você"
-      backTo="/cadastro"
+      backTo="/cadastro/profissional"
       bubbleText="Quase lá! Falta pouco pra gente começar."
       continueDisabled={!passoValido}
       onContinue={() => {
         void form.handleSubmit()
       }}
+      steps={PASSOS_CADASTRO_PROFISSIONAL}
+      sceneSrc={cenaProfissional}
+      sceneAlt="Psicóloga, médico, terapeuta e o mascote Sabidinho em um momento de cuidado"
+      trustLabel="Feito com carinho para profissionais"
+      loginTo="/login/profissional"
     >
       <form
         noValidate
@@ -210,44 +181,6 @@ export function CadastroSobrePage() {
         </form.Field>
 
         <form.Field
-          name="cep"
-          validators={{
-            onChange: ({ value }) =>
-              value.replace(/\D/g, '').length >= 8 ? validateCep(value) : undefined,
-            onBlur: ({ value }) => validateCep(value),
-            onSubmit: ({ value }) => validateCep(value),
-          }}
-        >
-          {(field) => (
-            <div className={`${GRID} ${GRID_METADE}`}>
-              <CadastroTextField
-                id={field.name}
-                name={field.name}
-                label="CEP"
-                placeholder="CEP"
-                icon={<MapPin weight="fill" aria-hidden="true" className="size-6 text-coral" />}
-                inputMode="numeric"
-                autoComplete="postal-code"
-                mask={CEP_MASK}
-                value={field.state.value}
-                onChange={(valor) => {
-                  field.handleChange(valor)
-                  // Usuário editou o CEP: a cidade consultada fica obsoleta.
-                  setCidadeCep(null)
-                }}
-                onBlur={() => {
-                  field.handleBlur()
-                  void consultarCep(field.state.value)
-                }}
-                hasError={field.state.meta.errors.length > 0}
-                error={field.state.meta.errors[0]}
-                hint={cidadeCep ?? undefined}
-              />
-            </div>
-          )}
-        </form.Field>
-
-        <form.Field
           name="telefone"
           validators={{
             onChange: ({ value }) =>
@@ -257,7 +190,7 @@ export function CadastroSobrePage() {
           }}
         >
           {(field) => (
-            <div className={`${GRID} ${GRID_METADE}`}>
+            <div className={GRID}>
               <CadastroTextField
                 id={field.name}
                 name={field.name}
