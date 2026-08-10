@@ -18,6 +18,7 @@ def _register(
         "password": "senha-segura-123",
         "family_role": "mamae",
         "cpf": "52998224725",
+        "lgpd_consent": True,
     }
     if role is not None:
         payload["role"] = role
@@ -42,6 +43,8 @@ def _user_with_children(email: str) -> dict[str, Any]:
             "cpf": user.cpf,
             "phone": user.phone,
             "birth_date": user.birth_date,
+            "cep": user.cep,
+            "consentido_em": user.consentido_em,
             "support_network": user.support_network,
             "children": [
                 {
@@ -82,6 +85,7 @@ def test_register_duplicate_email_409(client: TestClient) -> None:
             "password": "outra-senha-123",
             "family_role": "mamae",
             "cpf": "52998224725",
+            "lgpd_consent": True,
         },
     )
 
@@ -407,6 +411,7 @@ def _register_payload(**extra: Any) -> dict[str, Any]:
         "password": "senha-segura-123",
         "family_role": "mamae",
         "cpf": "52998224725",
+        "lgpd_consent": True,
     }
     payload.update(extra)
     return payload
@@ -597,3 +602,91 @@ def test_me_returns_cpf(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["user"]["cpf"] == "52998224725"
+
+
+# --- CEP + consentimento LGPD ---
+
+
+def test_register_family_without_lgpd_consent_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json={
+            "name": "Sem Consentimento",
+            "email": "semconsentimento@example.com",
+            "password": "senha-segura-123",
+            "family_role": "mamae",
+            "cpf": "52998224725",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O consentimento LGPD é obrigatório para criar a conta"
+
+
+def test_register_family_lgpd_consent_false_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_register_payload(email="consentfalso@example.com", lgpd_consent=False),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O consentimento LGPD é obrigatório para criar a conta"
+
+
+def test_register_family_lgpd_consent_true_201_records_timestamp(client: TestClient) -> None:
+    body = _register(client, email="consentiu@example.com")
+
+    stored = _user_with_children("consentiu@example.com")
+    assert stored["consentido_em"] is not None
+    # consentido_em é interno (registro LGPD) — nunca vai na resposta.
+    assert "consentido_em" not in body["user"]
+
+
+def test_register_invalid_cep_422(client: TestClient) -> None:
+    for bad_cep in ["123", "123456789", "abcdefgh", "01310-1000"]:
+        response = client.post("/auth/register", json=_register_payload(cep=bad_cep))
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == "CEP inválido"
+
+
+def test_register_formatted_cep_normalized_201(client: TestClient) -> None:
+    body = _register(client, email="cepok@example.com", cep="01310-100")
+
+    # Normaliza: pontuação removida, só dígitos persistidos e devolvidos.
+    assert body["user"]["cep"] == "01310100"
+    stored = _user_with_children("cepok@example.com")
+    assert stored["cep"] == "01310100"
+
+
+def test_register_professional_without_lgpd_consent_201(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json={
+            "name": "Pro Sem Consentimento",
+            "email": "prosemconsentimento@example.com",
+            "password": "senha-segura-123",
+            "role": "professional",
+            "cep": "01310100",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["user"]["role"] == "professional"
+    # CEP é ignorado para professional (não persiste, não vaza na resposta).
+    assert body["user"]["cep"] is None
+    stored = _user_with_children("prosemconsentimento@example.com")
+    assert stored["cep"] is None
+    assert stored["consentido_em"] is None
+
+
+def test_me_returns_cep_but_not_consent(client: TestClient) -> None:
+    registered = _register(client, cep="01310100")
+    token = registered["access_token"]
+
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    assert response.json()["user"]["cep"] == "01310100"
+    assert "consentido_em" not in response.json()["user"]

@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, ForeignKey, Numeric, String, text
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -42,6 +42,8 @@ class User(Base):
     cpf: Mapped[str | None] = mapped_column(String(11), unique=True)
     phone: Mapped[str | None] = mapped_column(String(20))
     birth_date: Mapped[date | None] = mapped_column(Date)
+    cep: Mapped[str | None] = mapped_column(String(8))
+    consentido_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     support_network: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 

@@ -73,6 +73,14 @@ def _validate_cpf(value: str) -> str:
     return digits
 
 
+# Só dígitos ("01310-100" e "01310100" viram "01310100"); exatamente 8 dígitos.
+def _validate_cep(value: str) -> str:
+    digits = re.sub(r"\D", "", value)
+    if len(digits) != 8:
+        raise ValueError("CEP inválido")
+    return digits
+
+
 def _validate_birth_date(value: date) -> date:
     today = date.today()
     if value > today:
@@ -115,6 +123,8 @@ class RegisterRequest(BaseModel):
     cpf: str | None = None
     phone: str | None = None
     birth_date: date | None = None
+    cep: str | None = None
+    lgpd_consent: bool | None = None
     children: list[ChildRegister] = Field(default_factory=list)
     support_network: list[FamilyRole] = Field(default_factory=list)
 
@@ -143,6 +153,11 @@ class RegisterRequest(BaseModel):
     def _birth_date_valid(cls, value: date | None) -> date | None:
         return _validate_birth_date(value) if value is not None else None
 
+    @field_validator("cep")
+    @classmethod
+    def _cep_valid(cls, value: str | None) -> str | None:
+        return _validate_cep(value) if value is not None else None
+
     @model_validator(mode="after")
     def family_fields_required(self) -> Self:
         if self.role == UserRole.FAMILY:
@@ -150,6 +165,8 @@ class RegisterRequest(BaseModel):
                 raise ValueError("family_role é obrigatório para o papel family")
             if self.cpf is None:
                 raise ValueError("O CPF é obrigatório para o papel family")
+            if self.lgpd_consent is not True:
+                raise ValueError("O consentimento LGPD é obrigatório para criar a conta")
         return self
 
 
@@ -170,6 +187,7 @@ class UserOut(BaseModel):
     cpf: str | None
     phone: str | None
     birth_date: date | None
+    cep: str | None
 
 
 class AuthResponse(BaseModel):

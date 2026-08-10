@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -72,6 +74,10 @@ def _apply_family_data(user: User, payload: RegisterRequest) -> None:
     assert payload.cpf is not None
     user.family_role = payload.family_role.value
     user.cpf = payload.cpf
+    user.cep = payload.cep
+    # Requisito LGPD: o consentimento só vale com registro de data/hora.
+    if payload.lgpd_consent:
+        user.consentido_em = datetime.now(UTC)
     user.support_network = [fr.value for fr in payload.support_network]
     user.children = [_child_model(child) for child in payload.children]
 
