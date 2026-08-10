@@ -45,6 +45,14 @@ class User(Base):
     cep: Mapped[str | None] = mapped_column(String(8))
     consentido_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     support_network: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+    profession: Mapped[str | None] = mapped_column(String(50))
+    council_type: Mapped[str | None] = mapped_column(String(20))
+    council_number: Mapped[str | None] = mapped_column(String(20))
+    council_uf: Mapped[str | None] = mapped_column(String(2))
+    cnpj: Mapped[str | None] = mapped_column(String(14), unique=True)
+    specialties: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+    age_groups: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+    service_modes: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
 
     children: Mapped[list[Child]] = relationship(

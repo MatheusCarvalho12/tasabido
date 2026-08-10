@@ -20,6 +20,17 @@ def _register(
         "cpf": "52998224725",
         "lgpd_consent": True,
     }
+    if role == "professional":
+        # Campos obrigatórios do papel professional (o restante dos defaults é
+        # ignorado: family_role/children/support_network não persistem).
+        payload.update(
+            {
+                "profession": "psicologo",
+                "council_type": "crp",
+                "council_number": "12345",
+                "council_uf": "sp",
+            }
+        )
     if role is not None:
         payload["role"] = role
     payload.update(extra)
@@ -46,6 +57,14 @@ def _user_with_children(email: str) -> dict[str, Any]:
             "cep": user.cep,
             "consentido_em": user.consentido_em,
             "support_network": user.support_network,
+            "profession": user.profession,
+            "council_type": user.council_type,
+            "council_number": user.council_number,
+            "council_uf": user.council_uf,
+            "cnpj": user.cnpj,
+            "specialties": user.specialties,
+            "age_groups": user.age_groups,
+            "service_modes": user.service_modes,
             "children": [
                 {
                     "name": child.name,
@@ -353,12 +372,15 @@ def test_register_professional_family_data_ignored_201(client: TestClient) -> No
 
     assert body["user"]["role"] == "professional"
     assert body["user"]["family_role"] is None
-    assert body["user"]["cpf"] is None
+    # CPF é obrigatório para professional e persiste (não é dado de family).
+    assert body["user"]["cpf"] == "52998224725"
     stored = _user_with_children("pro@example.com")
     assert stored["family_role"] is None
-    assert stored["cpf"] is None
+    assert stored["cpf"] == "52998224725"
     assert stored["children"] == []
     assert stored["support_network"] == []
+    # CEP é dado de family — ignorado para professional.
+    assert stored["cep"] is None
 
 
 def test_login_ok(client: TestClient) -> None:
@@ -732,7 +754,7 @@ def test_register_formatted_cep_normalized_201(client: TestClient) -> None:
     assert stored["cep"] == "01310100"
 
 
-def test_register_professional_without_lgpd_consent_201(client: TestClient) -> None:
+def test_register_professional_without_lgpd_consent_422(client: TestClient) -> None:
     response = client.post(
         "/auth/register",
         json={
@@ -740,18 +762,17 @@ def test_register_professional_without_lgpd_consent_201(client: TestClient) -> N
             "email": "prosemconsentimento@example.com",
             "password": "senha-segura-123",
             "role": "professional",
+            "profession": "psicologo",
+            "council_type": "crp",
+            "council_number": "12345",
+            "council_uf": "SP",
+            "cpf": "52998224725",
             "cep": "01310100",
         },
     )
 
-    assert response.status_code == 201
-    body = response.json()
-    assert body["user"]["role"] == "professional"
-    # CEP é ignorado para professional (não persiste, não vaza na resposta).
-    assert body["user"]["cep"] is None
-    stored = _user_with_children("prosemconsentimento@example.com")
-    assert stored["cep"] is None
-    assert stored["consentido_em"] is None
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O consentimento LGPD é obrigatório para criar a conta"
 
 
 def test_me_returns_cep_but_not_consent(client: TestClient) -> None:
@@ -763,3 +784,236 @@ def test_me_returns_cep_but_not_consent(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json()["user"]["cep"] == "01310100"
     assert "consentido_em" not in response.json()["user"]
+
+
+# --- Register professional: profissão, conselho, CNPJ, especialidades, LGPD ---
+
+
+def _professional_payload(**extra: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": "Paula Lima",
+        "email": "paula@example.com",
+        "password": "senha-segura-123",
+        "role": "professional",
+        "profession": "psicologo",
+        "council_type": "crp",
+        "council_number": "12345",
+        "council_uf": "sp",
+        "cpf": "52998224725",
+        "lgpd_consent": True,
+    }
+    payload.update(extra)
+    return payload
+
+
+def test_register_professional_without_profession_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_professional_payload(profession=None),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "A profissão é obrigatória para o papel professional"
+
+
+def test_register_professional_without_council_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_professional_payload(council_type=None),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O conselho é obrigatório para o papel professional"
+
+
+def test_register_professional_without_council_number_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_professional_payload(council_number=None),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "O número do conselho é obrigatório para o papel professional"
+    )
+
+
+def test_register_professional_without_council_uf_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_professional_payload(council_uf=None),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "A UF do conselho é obrigatória para o papel professional"
+
+
+def test_register_professional_invalid_council_uf_422(client: TestClient) -> None:
+    for bad_uf in ["SPX", "S", "BR", "xx"]:
+        response = client.post(
+            "/auth/register",
+            json=_professional_payload(council_uf=bad_uf),
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == "UF inválida"
+
+
+def test_register_professional_short_council_number_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_professional_payload(council_number="1"),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == ("O número do conselho precisa ter entre 2 e 20 caracteres")
+
+
+def test_register_professional_invalid_cnpj_422(client: TestClient) -> None:
+    for bad_cnpj in ["11.222.333/0001-80", "00.000.000/0000-00", "123"]:
+        response = client.post(
+            "/auth/register",
+            json=_professional_payload(cnpj=bad_cnpj),
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == "CNPJ inválido"
+
+
+def test_register_professional_duplicate_cnpj_409(client: TestClient) -> None:
+    _register(
+        client,
+        email="pro1@example.com",
+        role="professional",
+        cnpj="11.222.333/0001-81",
+    )
+
+    response = client.post(
+        "/auth/register",
+        json=_professional_payload(
+            email="pro2@example.com",
+            cpf="11144477735",
+            cnpj="11222333000181",
+        ),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "CNPJ já cadastrado"
+
+
+def test_register_professional_complete_201_persists_everything(client: TestClient) -> None:
+    body = _register(
+        client,
+        email="procompleto@example.com",
+        role="professional",
+        profession="neuropediatra",
+        council_type="crm",
+        council_number="CRM-SP 123456",
+        council_uf="SP",
+        cnpj="11.222.333/0001-81",
+        specialties=["tea", "  Transtorno do Processamento Auditivo  ", "tdah"],
+        age_groups=["0-3", "4-6", "7-10"],
+        service_modes=["presencial", "online"],
+    )
+
+    assert body["user"]["role"] == "professional"
+    assert body["user"]["profession"] == "neuropediatra"
+    assert body["user"]["council_type"] == "crm"
+    assert body["user"]["council_number"] == "CRM-SP 123456"
+    assert body["user"]["council_uf"] == "SP"
+    # CNPJ normalizado: pontuação removida, só dígitos persistidos e devolvidos.
+    assert body["user"]["cnpj"] == "11222333000181"
+    stored = _user_with_children("procompleto@example.com")
+    assert stored["profession"] == "neuropediatra"
+    assert stored["council_type"] == "crm"
+    assert stored["council_number"] == "CRM-SP 123456"
+    assert stored["council_uf"] == "SP"
+    assert stored["cnpj"] == "11222333000181"
+    # Enum conhecido passa direto; custom é persistida sem os espaços do trim.
+    assert stored["specialties"] == ["tea", "Transtorno do Processamento Auditivo", "tdah"]
+    assert stored["age_groups"] == ["0-3", "4-6", "7-10"]
+    assert stored["service_modes"] == ["presencial", "online"]
+    # LGPD com timestamp para professional também.
+    assert stored["consentido_em"] is not None
+    assert "consentido_em" not in body["user"]
+
+
+def test_register_professional_invalid_specialty_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_professional_payload(specialties=["Atendimento 24h"]),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Especialidade inválida: Atendimento 24h"
+
+
+def test_register_professional_specialties_more_than_15_422(client: TestClient) -> None:
+    specialties = [
+        "Alfa",
+        "Bravo",
+        "Charlie",
+        "Delta",
+        "Echo",
+        "Foxtrot",
+        "Golf",
+        "Hotel",
+        "India",
+        "Juliet",
+        "Kilo",
+        "Lima",
+        "Mike",
+        "November",
+        "Oscar",
+        "Papa",
+    ]
+    response = client.post(
+        "/auth/register",
+        json=_professional_payload(specialties=specialties),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "No máximo 15 especialidades"
+
+
+def test_register_professional_invalid_age_group_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_professional_payload(age_groups=["18-99"]),
+    )
+
+    assert response.status_code == 422
+
+
+def test_register_professional_invalid_service_mode_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_professional_payload(service_modes=["remoto"]),
+    )
+
+    assert response.status_code == 422
+
+
+def test_me_returns_professional_fields(client: TestClient) -> None:
+    registered = _register(
+        client,
+        email="prome@example.com",
+        role="professional",
+        cnpj="11.222.333/0001-81",
+        specialties=["tea"],
+        age_groups=["7-10"],
+        service_modes=["online"],
+    )
+    token = registered["access_token"]
+
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    user = response.json()["user"]
+    assert user["profession"] == "psicologo"
+    assert user["council_type"] == "crp"
+    assert user["council_uf"] == "SP"
+    assert user["cnpj"] == "11222333000181"
+    assert user["specialties"] == ["tea"]
+    assert user["age_groups"] == ["7-10"]
+    assert user["service_modes"] == ["online"]

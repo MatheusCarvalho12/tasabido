@@ -15,7 +15,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from validate_docbr import CPF
+from validate_docbr import CNPJ, CPF
 
 
 class UserRole(StrEnum):
@@ -39,6 +39,48 @@ class ConditionType(StrEnum):
     TOD = "tod"
     ATRASO_FALA = "atraso_fala"
     OUTRA = "outra"
+
+
+class ProfessionType(StrEnum):
+    PSICOLOGO = "psicologo"
+    PSIQUIATRA = "psiquiatra"
+    TERAPEUTA_OCUPACIONAL = "terapeuta_ocupacional"
+    FONOAUDIOLOGO = "fonoaudiologo"
+    PEDIATRA = "pediatra"
+    NEUROPEDIATRA = "neuropediatra"
+    PSICOPEDAGOGO = "psicopedagogo"
+    OUTRO = "outro"
+
+
+class CouncilType(StrEnum):
+    CRM = "crm"
+    CRP = "crp"
+    CREFITO = "crefito"
+    CRFA = "crfa"
+    CRO = "cro"
+    OUTRO = "outro"
+
+
+class SpecialtyType(StrEnum):
+    TEA = "tea"
+    TDAH = "tdah"
+    DISLEXIA = "dislexia"
+    TOD = "tod"
+    ATRASO_FALA = "atraso_fala"
+    OUTRA = "outra"
+
+
+class AgeGroup(StrEnum):
+    ZERO_TRES = "0-3"
+    QUATRO_SEIS = "4-6"
+    SETE_DEZ = "7-10"
+    ONZE_QUATORZE = "11-14"
+    QUINZE_MAIS = "15+"
+
+
+class ServiceMode(StrEnum):
+    PRESENCIAL = "presencial"
+    ONLINE = "online"
 
 
 # Contrato único com o front: só letras (acentos ok) e espaços, mínimo 2 caracteres.
@@ -89,23 +131,103 @@ def _validate_cep(value: str) -> str:
     return digits
 
 
-# Condição custom: letras (acentos ok), espaços e hífen; 3 a 40 caracteres após trim.
-_CONDITION_PATTERN = re.compile(r"^[^\W\d_]+(?:[\s-]+[^\W\d_]+)*$")
-_MAX_CONDITIONS = 15
+# Só dígitos ("11.222.333/0001-81" e "11222333000181" viram "11222333000181");
+# dígitos verificadores validados com validate-docbr.
+def _validate_cnpj(value: str | None) -> str | None:
+    if value is None:
+        return None
+    digits = re.sub(r"\D", "", value)
+    if not CNPJ().validate(digits):
+        raise ValueError("CNPJ inválido")
+    return digits
+
+
+# 27 UFs brasileiras (siglas oficiais do IBGE).
+_BRAZILIAN_UFS = frozenset(
+    {
+        "AC",
+        "AL",
+        "AP",
+        "AM",
+        "BA",
+        "CE",
+        "DF",
+        "ES",
+        "GO",
+        "MA",
+        "MT",
+        "MS",
+        "MG",
+        "PA",
+        "PB",
+        "PR",
+        "PE",
+        "PI",
+        "RJ",
+        "RN",
+        "RS",
+        "RO",
+        "RR",
+        "SC",
+        "SP",
+        "SE",
+        "TO",
+    }
+)
+
+
+def _validate_council_uf(value: str | None) -> str | None:
+    if value is None:
+        return None
+    uf = value.strip().upper()
+    if uf not in _BRAZILIAN_UFS:
+        raise ValueError("UF inválida")
+    return uf
+
+
+def _validate_council_number(value: str | None) -> str | None:
+    if value is None:
+        return None
+    number = value.strip()
+    if len(number) < 2 or len(number) > 20:
+        raise ValueError("O número do conselho precisa ter entre 2 e 20 caracteres")
+    return number
+
+
+# Tag custom (condição/especialidade): letras (acentos ok), espaços e hífen;
+# 3 a 40 caracteres após trim.
+_TAG_PATTERN = re.compile(r"^[^\W\d_]+(?:[\s-]+[^\W\d_]+)*$")
+_MAX_TAGS = 15
 _KNOWN_CONDITIONS = frozenset(condition.value for condition in ConditionType)
+_KNOWN_SPECIALTIES = frozenset(specialty.value for specialty in SpecialtyType)
+
+
+def _validate_tag(value: str, known: frozenset[str], label: str) -> str:
+    """Enum conhecido passa direto (trim); senão exige texto custom válido."""
+    tag = value.strip()
+    if tag in known:
+        return tag
+    if len(tag) < 3 or len(tag) > 40 or _TAG_PATTERN.fullmatch(tag) is None:
+        raise ValueError(f"{label} inválida: {tag}")
+    return tag
 
 
 def _validate_condition(value: str) -> str:
-    """Enum conhecido passa direto (trim); senão exige texto custom válido."""
-    condition = value.strip()
-    if condition in _KNOWN_CONDITIONS:
-        return condition
-    if len(condition) < 3 or len(condition) > 40 or _CONDITION_PATTERN.fullmatch(condition) is None:
-        raise ValueError(f"Condição inválida: {condition}")
-    return condition
+    return _validate_tag(value, _KNOWN_CONDITIONS, "Condição")
+
+
+def _validate_specialty(value: str) -> str:
+    return _validate_tag(value, _KNOWN_SPECIALTIES, "Especialidade")
 
 
 ConditionValue = Annotated[str, AfterValidator(_validate_condition)]
+SpecialtyValue = Annotated[str, AfterValidator(_validate_specialty)]
+
+
+def _validate_tag_count(value: list[str], label: str) -> list[str]:
+    if len(value) > _MAX_TAGS:
+        raise ValueError(f"No máximo {_MAX_TAGS} {label}")
+    return value
 
 
 def _validate_birth_date(value: date) -> date:
@@ -143,9 +265,7 @@ class ChildRegister(BaseModel):
     @field_validator("conditions")
     @classmethod
     def _conditions_count_valid(cls, value: list[str]) -> list[str]:
-        if len(value) > _MAX_CONDITIONS:
-            raise ValueError(f"No máximo {_MAX_CONDITIONS} condições por criança")
-        return value
+        return _validate_tag_count(value, "condições por criança")
 
 
 class RegisterRequest(BaseModel):
@@ -161,6 +281,14 @@ class RegisterRequest(BaseModel):
     lgpd_consent: bool | None = None
     children: list[ChildRegister] = Field(default_factory=list)
     support_network: list[FamilyRole] = Field(default_factory=list)
+    profession: ProfessionType | None = None
+    council_type: CouncilType | None = None
+    council_number: str | None = None
+    council_uf: str | None = None
+    cnpj: str | None = None
+    specialties: list[SpecialtyValue] = Field(default_factory=list)
+    age_groups: list[AgeGroup] = Field(default_factory=list)
+    service_modes: list[ServiceMode] = Field(default_factory=list)
 
     @field_validator("name")
     @classmethod
@@ -192,6 +320,26 @@ class RegisterRequest(BaseModel):
     def _cep_valid(cls, value: str | None) -> str | None:
         return _validate_cep(value) if value is not None else None
 
+    @field_validator("council_number")
+    @classmethod
+    def _council_number_valid(cls, value: str | None) -> str | None:
+        return _validate_council_number(value)
+
+    @field_validator("council_uf")
+    @classmethod
+    def _council_uf_valid(cls, value: str | None) -> str | None:
+        return _validate_council_uf(value)
+
+    @field_validator("cnpj")
+    @classmethod
+    def _cnpj_valid(cls, value: str | None) -> str | None:
+        return _validate_cnpj(value)
+
+    @field_validator("specialties")
+    @classmethod
+    def _specialties_count_valid(cls, value: list[str]) -> list[str]:
+        return _validate_tag_count(value, "especialidades")
+
     @model_validator(mode="after")
     def family_fields_required(self) -> Self:
         if self.role == UserRole.FAMILY:
@@ -199,6 +347,23 @@ class RegisterRequest(BaseModel):
                 raise ValueError("family_role é obrigatório para o papel family")
             if self.cpf is None:
                 raise ValueError("O CPF é obrigatório para o papel family")
+            if self.lgpd_consent is not True:
+                raise ValueError("O consentimento LGPD é obrigatório para criar a conta")
+        return self
+
+    @model_validator(mode="after")
+    def professional_fields_required(self) -> Self:
+        if self.role == UserRole.PROFESSIONAL:
+            if self.profession is None:
+                raise ValueError("A profissão é obrigatória para o papel professional")
+            if self.council_type is None:
+                raise ValueError("O conselho é obrigatório para o papel professional")
+            if self.council_number is None:
+                raise ValueError("O número do conselho é obrigatório para o papel professional")
+            if self.council_uf is None:
+                raise ValueError("A UF do conselho é obrigatória para o papel professional")
+            if self.cpf is None:
+                raise ValueError("O CPF é obrigatório para o papel professional")
             if self.lgpd_consent is not True:
                 raise ValueError("O consentimento LGPD é obrigatório para criar a conta")
         return self
@@ -222,6 +387,14 @@ class UserOut(BaseModel):
     phone: str | None
     birth_date: date | None
     cep: str | None
+    profession: str | None
+    council_type: str | None
+    council_number: str | None
+    council_uf: str | None
+    cnpj: str | None
+    specialties: list[str]
+    age_groups: list[str]
+    service_modes: list[str]
 
 
 class AuthResponse(BaseModel):
