@@ -1,0 +1,4 @@
+minimumReleaseAgeExclude:
+  - '@tanstack/react-router@1.170.25'
+  - '@tanstack/router-core@1.171.21'
+  - '@testing-library/jest-dom@7.0.1'
