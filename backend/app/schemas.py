@@ -7,6 +7,7 @@ from typing import Self
 
 import phonenumbers
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from validate_docbr import CPF
 
 
 class UserRole(StrEnum):
@@ -64,6 +65,14 @@ def _validate_phone(value: str) -> str:
     return value
 
 
+# Só dígitos ("123.456.789-09" e "12345678909" viram "12345678909").
+def _validate_cpf(value: str) -> str:
+    digits = re.sub(r"\D", "", value)
+    if not CPF().validate(digits):
+        raise ValueError("CPF inválido")
+    return digits
+
+
 def _validate_birth_date(value: date) -> date:
     today = date.today()
     if value > today:
@@ -76,6 +85,7 @@ def _validate_birth_date(value: date) -> date:
 
 class ChildRegister(BaseModel):
     name: str
+    cpf: str
     birth_date: date | None = None
     weight_kg: Decimal | None = Field(default=None, gt=0, le=300)
     conditions: list[ConditionType] = Field(default_factory=list)
@@ -84,6 +94,11 @@ class ChildRegister(BaseModel):
     @classmethod
     def _name_valid(cls, value: str) -> str:
         return _validate_name(value, "O nome da criança precisa ter pelo menos 2 letras")
+
+    @field_validator("cpf")
+    @classmethod
+    def _cpf_valid(cls, value: str) -> str:
+        return _validate_cpf(value)
 
     @field_validator("birth_date")
     @classmethod
@@ -97,6 +112,7 @@ class RegisterRequest(BaseModel):
     password: str
     role: UserRole = UserRole.FAMILY
     family_role: FamilyRole | None = None
+    cpf: str | None = None
     phone: str | None = None
     birth_date: date | None = None
     children: list[ChildRegister] = Field(default_factory=list)
@@ -117,15 +133,23 @@ class RegisterRequest(BaseModel):
     def _phone_valid(cls, value: str | None) -> str | None:
         return _validate_phone(value) if value is not None else None
 
+    @field_validator("cpf")
+    @classmethod
+    def _cpf_valid(cls, value: str | None) -> str | None:
+        return _validate_cpf(value) if value is not None else None
+
     @field_validator("birth_date")
     @classmethod
     def _birth_date_valid(cls, value: date | None) -> date | None:
         return _validate_birth_date(value) if value is not None else None
 
     @model_validator(mode="after")
-    def family_role_required_for_family(self) -> Self:
-        if self.role == UserRole.FAMILY and self.family_role is None:
-            raise ValueError("family_role é obrigatório para o papel family")
+    def family_fields_required(self) -> Self:
+        if self.role == UserRole.FAMILY:
+            if self.family_role is None:
+                raise ValueError("family_role é obrigatório para o papel family")
+            if self.cpf is None:
+                raise ValueError("O CPF é obrigatório para o papel family")
         return self
 
 
@@ -143,6 +167,7 @@ class UserOut(BaseModel):
     email: str
     role: str
     family_role: str | None
+    cpf: str | None
     phone: str | None
     birth_date: date | None
 

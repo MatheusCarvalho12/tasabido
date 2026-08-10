@@ -28,6 +28,12 @@ def register(payload: RegisterRequest, db: DbSession) -> AuthResponse:
     email = payload.email.lower()
     if db.scalar(select(User).where(User.email == email)) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="E-mail já cadastrado")
+    if (
+        payload.role == UserRole.FAMILY
+        and payload.cpf is not None
+        and db.scalar(select(User).where(User.cpf == payload.cpf)) is not None
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="CPF já cadastrado")
 
     user = User(
         name=payload.name,
@@ -42,19 +48,30 @@ def register(payload: RegisterRequest, db: DbSession) -> AuthResponse:
     db.add(user)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         # Corrida entre dois registros simultâneos: a unique constraint no banco é a lei.
         db.rollback()
+        if _is_cpf_conflict(exc):
+            raise HTTPException(status.HTTP_409_CONFLICT, detail="CPF já cadastrado") from None
         raise HTTPException(status.HTTP_409_CONFLICT, detail="E-mail já cadastrado") from None
     db.refresh(user)
     return _auth_response(user)
+
+
+def _is_cpf_conflict(exc: IntegrityError) -> bool:
+    """True se a violação de unicidade veio de uma coluna de CPF (users ou children)."""
+    diagnostic = getattr(exc.orig, "diag", None)
+    constraint = getattr(diagnostic, "constraint_name", None) or ""
+    return "cpf" in constraint
 
 
 def _apply_family_data(user: User, payload: RegisterRequest) -> None:
     """Dados exclusivos do papel family. Para professional são ignorados (não persistem)."""
     # Garantido pelo model_validator de RegisterRequest (family_role obrigatório p/ family).
     assert payload.family_role is not None
+    assert payload.cpf is not None
     user.family_role = payload.family_role.value
+    user.cpf = payload.cpf
     user.support_network = [fr.value for fr in payload.support_network]
     user.children = [_child_model(child) for child in payload.children]
 
@@ -62,6 +79,7 @@ def _apply_family_data(user: User, payload: RegisterRequest) -> None:
 def _child_model(child: ChildRegister) -> Child:
     return Child(
         name=child.name,
+        cpf=child.cpf,
         birth_date=child.birth_date,
         weight_kg=child.weight_kg,
         conditions=[c.value for c in child.conditions],

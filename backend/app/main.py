@@ -45,8 +45,11 @@ def _humanize_validation_error(errors: Sequence[dict[str, Any]]) -> str:
             return message
         loc = error.get("loc") or ()
         field = str(loc[-1]) if loc else ""
-        if error.get("type") == "missing" and field == "family_role":
-            return "O papel familiar é obrigatório para o cadastro family"
+        if error.get("type") == "missing":
+            if field == "family_role":
+                return "O papel familiar é obrigatório para o cadastro family"
+            if field == "cpf" and "children" in loc:
+                return "O CPF da criança é obrigatório"
         if field in _FIELD_ERRORS:
             return _FIELD_ERRORS[field]
     return "Dados inválidos"

@@ -17,6 +17,7 @@ def _register(
         "email": email,
         "password": "senha-segura-123",
         "family_role": "mamae",
+        "cpf": "52998224725",
     }
     if role is not None:
         payload["role"] = role
@@ -38,12 +39,14 @@ def _user_with_children(email: str) -> dict[str, Any]:
         assert user is not None
         return {
             "family_role": user.family_role,
+            "cpf": user.cpf,
             "phone": user.phone,
             "birth_date": user.birth_date,
             "support_network": user.support_network,
             "children": [
                 {
                     "name": child.name,
+                    "cpf": child.cpf,
                     "birth_date": child.birth_date,
                     "weight_kg": child.weight_kg,
                     "conditions": child.conditions,
@@ -62,6 +65,7 @@ def test_register_ok(client: TestClient) -> None:
     assert body["user"]["email"] == "ana@example.com"
     assert body["user"]["role"] == "family"
     assert body["user"]["family_role"] == "mamae"
+    assert body["user"]["cpf"] == "52998224725"
     assert body["user"]["phone"] is None
     assert body["user"]["birth_date"] is None
     uuid.UUID(body["user"]["id"])
@@ -77,6 +81,7 @@ def test_register_duplicate_email_409(client: TestClient) -> None:
             "email": "ana@example.com",
             "password": "outra-senha-123",
             "family_role": "mamae",
+            "cpf": "52998224725",
         },
     )
 
@@ -118,34 +123,45 @@ def test_register_full_family_201_persists_everything(client: TestClient) -> Non
         client,
         email="familia@example.com",
         family_role="mamae",
+        cpf="529.982.247-25",
         phone="+55 11 91234-5678",
         birth_date="1990-05-20",
         children=[
             {
                 "name": "Bento",
+                "cpf": "111.444.777-35",
                 "birth_date": "2021-03-10",
                 "weight_kg": 12.5,
                 "conditions": ["tea", "atraso_fala"],
             },
-            {"name": "Luna", "birth_date": None, "weight_kg": None, "conditions": []},
+            {
+                "name": "Luna",
+                "cpf": "01234567890",
+                "birth_date": None,
+                "weight_kg": None,
+                "conditions": [],
+            },
         ],
         support_network=["vovo", "vovo-m", "outro"],
     )
 
     stored = _user_with_children("familia@example.com")
     assert stored["family_role"] == "mamae"
+    assert stored["cpf"] == "52998224725"
     assert stored["phone"] == "+55 11 91234-5678"
     assert stored["birth_date"] == date(1990, 5, 20)
     assert stored["support_network"] == ["vovo", "vovo-m", "outro"]
     assert stored["children"] == [
         {
             "name": "Bento",
+            "cpf": "11144477735",
             "birth_date": date(2021, 3, 10),
             "weight_kg": Decimal("12.50"),
             "conditions": ["tea", "atraso_fala"],
         },
         {
             "name": "Luna",
+            "cpf": "01234567890",
             "birth_date": None,
             "weight_kg": None,
             "conditions": [],
@@ -197,7 +213,8 @@ def test_register_invalid_child_condition_422(client: TestClient) -> None:
             "email": "condicao@example.com",
             "password": "senha-segura-123",
             "family_role": "mamae",
-            "children": [{"name": "Bento", "conditions": ["inexistente"]}],
+            "cpf": "52998224725",
+            "children": [{"name": "Bento", "cpf": "11144477735", "conditions": ["inexistente"]}],
         },
     )
 
@@ -228,7 +245,8 @@ def test_register_child_weight_kg_invalid_422(client: TestClient) -> None:
                 "email": f"peso{invalid_weight}@example.com",
                 "password": "senha-segura-123",
                 "family_role": "mamae",
-                "children": [{"name": "Bento", "weight_kg": invalid_weight}],
+                "cpf": "52998224725",
+                "children": [{"name": "Bento", "cpf": "11144477735", "weight_kg": invalid_weight}],
             },
         )
 
@@ -239,7 +257,7 @@ def test_register_child_weight_kg_upper_bound_201(client: TestClient) -> None:
     _register(
         client,
         email="peso300@example.com",
-        children=[{"name": "Bento", "weight_kg": 300}],
+        children=[{"name": "Bento", "cpf": "11144477735", "weight_kg": 300}],
     )
 
     stored = _user_with_children("peso300@example.com")
@@ -252,14 +270,16 @@ def test_register_professional_family_data_ignored_201(client: TestClient) -> No
         email="pro@example.com",
         role="professional",
         family_role="mamae",
-        children=[{"name": "Bento", "conditions": ["tea"]}],
+        children=[{"name": "Bento", "cpf": "11144477735", "conditions": ["tea"]}],
         support_network=["vovo"],
     )
 
     assert body["user"]["role"] == "professional"
     assert body["user"]["family_role"] is None
+    assert body["user"]["cpf"] is None
     stored = _user_with_children("pro@example.com")
     assert stored["family_role"] is None
+    assert stored["cpf"] is None
     assert stored["children"] == []
     assert stored["support_network"] == []
 
@@ -386,6 +406,7 @@ def _register_payload(**extra: Any) -> dict[str, Any]:
         "email": "ana@example.com",
         "password": "senha-segura-123",
         "family_role": "mamae",
+        "cpf": "52998224725",
     }
     payload.update(extra)
     return payload
@@ -476,7 +497,9 @@ def test_register_child_future_birth_date_422(client: TestClient) -> None:
     future = (date.today() + timedelta(days=1)).isoformat()
     response = client.post(
         "/auth/register",
-        json=_register_payload(children=[{"name": "Bento", "birth_date": future}]),
+        json=_register_payload(
+            children=[{"name": "Bento", "cpf": "11144477735", "birth_date": future}]
+        ),
     )
 
     assert response.status_code == 422
@@ -484,7 +507,93 @@ def test_register_child_future_birth_date_422(client: TestClient) -> None:
 
 
 def test_register_child_short_name_422(client: TestClient) -> None:
-    response = client.post("/auth/register", json=_register_payload(children=[{"name": "A"}]))
+    response = client.post(
+        "/auth/register",
+        json=_register_payload(children=[{"name": "A", "cpf": "11144477735"}]),
+    )
 
     assert response.status_code == 422
     assert response.json()["detail"] == "O nome da criança precisa ter pelo menos 2 letras"
+
+
+# --- CPF (responsável e criança) ---
+
+
+def test_register_family_without_cpf_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json={
+            "name": "Sem CPF",
+            "email": "semcpf@example.com",
+            "password": "senha-segura-123",
+            "family_role": "mamae",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O CPF é obrigatório para o papel family"
+
+
+def test_register_invalid_cpf_422(client: TestClient) -> None:
+    response = client.post("/auth/register", json=_register_payload(cpf="123.456.789-00"))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "CPF inválido"
+
+
+def test_register_cpf_repeated_digits_422(client: TestClient) -> None:
+    response = client.post("/auth/register", json=_register_payload(cpf="111.111.111-11"))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "CPF inválido"
+
+
+def test_register_formatted_cpf_normalized_201(client: TestClient) -> None:
+    body = _register(client, email="cpfformatado@example.com", cpf="529.982.247-25")
+
+    # Normaliza: pontuação removida, só dígitos persistidos e devolvidos.
+    assert body["user"]["cpf"] == "52998224725"
+    stored = _user_with_children("cpfformatado@example.com")
+    assert stored["cpf"] == "52998224725"
+
+
+def test_register_duplicate_cpf_409(client: TestClient) -> None:
+    _register(client)
+
+    response = client.post(
+        "/auth/register",
+        json=_register_payload(email="outracpf@example.com", cpf="52998224725"),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "CPF já cadastrado"
+
+
+def test_register_child_without_cpf_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_register_payload(children=[{"name": "Bento"}]),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "O CPF da criança é obrigatório"
+
+
+def test_register_child_invalid_cpf_422(client: TestClient) -> None:
+    response = client.post(
+        "/auth/register",
+        json=_register_payload(children=[{"name": "Bento", "cpf": "000.000.000-00"}]),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "CPF inválido"
+
+
+def test_me_returns_cpf(client: TestClient) -> None:
+    registered = _register(client)
+    token = registered["access_token"]
+
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    assert response.json()["user"]["cpf"] == "52998224725"
