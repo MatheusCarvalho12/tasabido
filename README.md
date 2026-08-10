@@ -93,5 +93,3 @@
 | FastMCP | 3.4.6 |
 | **Observabilidade** | |
 | Sentry SDK | 2.66.1 |
-
-Versionamento semântico (X.Y.Z — correção, funcionalidade nova, quebra de compatibilidade). Versão atual: 0.1.0. Cada squash aprovado atualiza a versão.
