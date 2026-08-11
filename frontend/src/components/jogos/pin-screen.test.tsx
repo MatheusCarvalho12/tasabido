@@ -9,9 +9,8 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { PinScreen, PIN_ERROR_OFFLINE, PIN_ERROR_WRONG } from './PinScreen'
 import { useParentPinStore } from '@/stores/useParentPinStore'
+import { PIN_ERROR_OFFLINE, PIN_ERROR_WRONG, PinScreen } from './PinScreen'
 
 async function renderPinScreen() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })

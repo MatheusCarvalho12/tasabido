@@ -31,7 +31,8 @@ export function ParentsAreaPage() {
         </div>
         <h1 className="text-2xl font-extrabold sm:text-3xl">Área dos pais</h1>
         <p className="max-w-sm text-muted-foreground">
-          Em breve, você vai encontrar aqui as configurações da família e o controle do modo criança.
+          Em breve, você vai encontrar aqui as configurações da família e o controle do modo
+          criança.
         </p>
       </div>
       <Button

@@ -1,4 +1,4 @@
-import { apiClient, ApiRequestError } from '@/lib/api'
+import { ApiRequestError, apiClient } from '@/lib/api'
 import { getToken } from '@/lib/auth'
 import type { ApiErrorBody } from '@/types/auth'
 
