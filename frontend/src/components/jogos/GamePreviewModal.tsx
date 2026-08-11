@@ -71,7 +71,7 @@ export function GamePreviewModal({ game, onClose, onPlay, origin }: GamePreviewM
       x: origin.x - window.innerWidth / 2,
       y: origin.y - window.innerHeight / 2,
     }
-  }, [origin, game?.id])
+  }, [origin])
 
   // Abre: foca o fechar, trava o scroll, guarda o foco anterior (restaura ao fechar).
   useEffect(() => {
@@ -180,7 +180,8 @@ export function GamePreviewModal({ game, onClose, onPlay, origin }: GamePreviewM
                   aria-hidden="true"
                   className="absolute inset-0 opacity-30"
                   style={{
-                    backgroundImage: 'radial-gradient(rgb(255 255 255 / 0.9) 1.5px, transparent 1.5px)',
+                    backgroundImage:
+                      'radial-gradient(rgb(255 255 255 / 0.9) 1.5px, transparent 1.5px)',
                     backgroundSize: '20px 20px',
                   }}
                 />

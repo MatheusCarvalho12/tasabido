@@ -45,7 +45,10 @@ export function JogoEmConstrucaoPage() {
           onClick={() => void navigate({ to: '/' })}
           className="group mt-2 inline-flex h-12 items-center gap-2 rounded-full bg-blue px-6 text-base font-bold text-white shadow-clay-btn transition-[transform,background-color,box-shadow] hover:-translate-y-0.5 hover:bg-blue-dark active:translate-y-0 md:h-14 md:text-lg"
         >
-          <ArrowLeft weight="bold" className="size-5 transition-transform group-hover:-translate-x-0.5" />
+          <ArrowLeft
+            weight="bold"
+            className="size-5 transition-transform group-hover:-translate-x-0.5"
+          />
           Voltar aos jogos
         </button>
       </main>
