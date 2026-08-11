@@ -3,7 +3,7 @@ import { createRootRoute, createRoute, createRouter, RouterProvider } from '@tan
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-
+import { API_BASE_URL } from '@/lib/api'
 import { LoginForm, type LoginFormProps } from './LoginForm'
 
 async function renderLoginForm(props: Partial<LoginFormProps> = {}, onLoggedIn = vi.fn()) {
@@ -126,7 +126,7 @@ describe('LoginForm', () => {
     await user.click(screen.getByRole('button', { name: /entrar/i }))
 
     const [request] = fetchMock.mock.calls[0]
-    expect(request.url).toBe('http://localhost:8000/auth/login')
+    expect(request.url).toBe(`${API_BASE_URL}/auth/login`)
     expect(JSON.parse(await request.clone().text())).toMatchObject({
       email: 'ana@tasabido.com.br',
       password: 'senha12345',

@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.deps import CurrentUser, DbSession
+from app.deps import CurrentUser, DbSession, OptionalUser
 from app.game_stats import game_out, stats_for_games
 from app.models import Game, GameRun, User
 from app.schemas import (
@@ -249,10 +249,16 @@ def upload_svg(
 
 
 @router.get("/{game_id}/svg")
-def get_svg(game_id: int, current_user: CurrentUser, db: DbSession) -> FileResponse:
-    """Serve o SVG do jogo com content-type image/svg+xml (404 quando não existe)."""
+def get_svg(game_id: int, db: DbSession, current_user: OptionalUser) -> FileResponse:
+    """Serve o SVG do jogo com content-type image/svg+xml (404 quando não existe).
+
+    Público para jogos PUBLICADOS (o <img> do card/modal não manda header de
+    auth); rascunho só o dono vê (preview do profissional)."""
     game = db.get(Game, game_id)
     if game is None or game.svg_path is None:
+        raise _SVG_NOT_FOUND
+    is_owner = current_user is not None and game.criado_por == current_user.id
+    if game.status != "published" and not is_owner:
         raise _SVG_NOT_FOUND
     path = _resolve_svg_path(game.svg_path)
     if path is None or not path.is_file():

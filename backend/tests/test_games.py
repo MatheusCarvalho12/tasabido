@@ -278,6 +278,49 @@ def test_get_svg_not_found_404(client: TestClient) -> None:
     assert response.json()["detail"] == "SVG não encontrado"
 
 
+def test_get_svg_public_when_published(client: TestClient) -> None:
+    """O <img> do card/modal não manda header de auth: SVG de jogo PUBLICADO
+    precisa ser servido publicamente."""
+    _register(client, "prof@example.com", "professional", "52998224725")
+    headers = _auth("prof@example.com")
+    game = _create_game(client, headers)
+    assert (
+        client.post(
+            f"/api/games/{game['id']}/svg",
+            files={"file": ("arte.svg", SVG_CONTENT, "image/svg+xml")},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+    assert client.post(f"/api/games/{game['id']}/publish", headers=headers).status_code == 200
+
+    response = client.get(f"/api/games/{game['id']}/svg")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/svg+xml"
+    assert response.content == SVG_CONTENT
+
+
+def test_get_svg_draft_only_for_owner(client: TestClient) -> None:
+    """Rascunho: sem token 404; o dono (profissional) ainda vê para preview."""
+    _register(client, "prof@example.com", "professional", "52998224725")
+    headers = _auth("prof@example.com")
+    game = _create_game(client, headers)
+    assert (
+        client.post(
+            f"/api/games/{game['id']}/svg",
+            files={"file": ("arte.svg", SVG_CONTENT, "image/svg+xml")},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+
+    assert client.get(f"/api/games/{game['id']}/svg").status_code == 404
+    owner = client.get(f"/api/games/{game['id']}/svg", headers=headers)
+    assert owner.status_code == 200
+    assert owner.content == SVG_CONTENT
+
+
 def test_delete_game_ok_and_404(client: TestClient) -> None:
     _register(client, "prof@example.com", "professional", "52998224725")
     headers = _auth("prof@example.com")

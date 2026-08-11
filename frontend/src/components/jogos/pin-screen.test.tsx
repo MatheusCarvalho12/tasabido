@@ -9,6 +9,7 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { API_BASE_URL } from '@/lib/api'
 import { useParentPinStore } from '@/stores/useParentPinStore'
 import { PIN_ERROR_OFFLINE, PIN_ERROR_WRONG, PinScreen } from './PinScreen'
 
@@ -79,7 +80,7 @@ describe('PinScreen', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [request] = fetchMock.mock.calls[0]
-    expect(request.url).toBe('http://localhost:8000/api/family/pin/validate')
+    expect(request.url).toBe(`${API_BASE_URL}/api/family/pin/validate`)
     expect(JSON.parse(await request.clone().text())).toEqual({ pin: '123456' })
 
     expect(await screen.findByText('Área dos pais')).toBeInTheDocument()

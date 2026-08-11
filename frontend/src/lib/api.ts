@@ -5,8 +5,8 @@ import type { ApiErrorBody, LoginRequest, LoginResponse, MeResponse, User } from
 import type { RegisterRequest, RegisterResponse } from '@/types/cadastro'
 import type { RegisterProfessionalRequest } from '@/types/cadastro-profissional'
 
-/** Base da API local (backend FastAPI na porta 8000). */
-export const API_BASE_URL = 'http://localhost:8000'
+/** Base da API local (backend FastAPI). Override por VITE_API_URL (ex.: preview com backend fora da 8000). */
+export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 export const apiClient = createClient({
   baseUrl: API_BASE_URL,

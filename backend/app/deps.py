@@ -52,5 +52,26 @@ def get_current_professional(current_user: CurrentUser) -> User:
     return current_user
 
 
+def get_optional_user(
+    token: Annotated[str | None, Depends(oauth2_scheme)],
+    db: DbSession,
+) -> User | None:
+    """Usuário autenticado OU None (token ausente/inválido) — para recursos que
+    são públicos mas liberam mais para o dono (ex.: SVG de rascunho)."""
+    if token is None:
+        return None
+    subject = decode_access_token(token)
+    if subject is None:
+        return None
+    try:
+        user_id = UUID(subject)
+    except ValueError:
+        return None
+    return db.scalar(select(User).where(User.id == user_id))
+
+
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
+
+
 CurrentFamily = Annotated[User, Depends(get_current_family)]
 CurrentProfessional = Annotated[User, Depends(get_current_professional)]

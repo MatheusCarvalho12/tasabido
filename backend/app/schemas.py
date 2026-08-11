@@ -646,5 +646,16 @@ class PinSetResponse(BaseModel):
     ok: bool
 
 
+class ChildOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+
+
+class ChildrenListResponse(BaseModel):
+    items: list[ChildOut]
+
+
 class SvgUploadResponse(BaseModel):
     svg_url: str

@@ -617,3 +617,56 @@ def test_pin_hash_stored_argon2(client: TestClient) -> None:
         assert user.pin_hash.startswith("$argon2id$")
         assert verify_password("123456", user.pin_hash)
         assert not verify_password("654321", user.pin_hash)
+
+
+def test_children_list_requires_auth_401(client: TestClient) -> None:
+    assert client.get("/api/children").status_code == 401
+
+
+def test_children_list_own_family_contract(client: TestClient) -> None:
+    family = _register(
+        client,
+        "mae@example.com",
+        "family",
+        "52998224725",
+        children=[
+            {"name": "Duda", "cpf": "53196679144"},
+            {"name": "Bento", "cpf": "52998224725"},
+        ],
+    )
+    headers = _auth(family["access_token"])
+
+    response = client.get("/api/children", headers=headers)
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [child["name"] for child in items] == ["Duda", "Bento"]
+    for child in items:
+        assert set(child) == {"id", "name"}
+        assert uuid.UUID(child["id"])
+
+
+def test_children_list_only_own_family(client: TestClient) -> None:
+    _register(
+        client,
+        "outra-mae@example.com",
+        "family",
+        "03478246687",
+        children=[{"name": "Alice", "cpf": "53196679144"}],
+    )
+    family = _register(client, "mae@example.com", "family", "52998224725")
+
+    response = client.get("/api/children", headers=_auth(family["access_token"]))
+
+    assert response.status_code == 200
+    # A família só enxerga os próprios filhos (Bia, do helper) — nunca a Alice
+    # da outra família registrada no mesmo banco.
+    assert [child["name"] for child in response.json()["items"]] == ["Bia"]
+
+
+def test_children_list_professional_forbidden_403(client: TestClient) -> None:
+    prof = _register(client, "prof@example.com", "professional", "39053344705")
+
+    response = client.get("/api/children", headers=_auth(prof["access_token"]))
+
+    assert response.status_code == 403

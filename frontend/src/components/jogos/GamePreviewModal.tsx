@@ -62,8 +62,11 @@ export function GamePreviewModal({ game, onClose, onPlay, origin }: GamePreviewM
   const [activeGameId, setActiveGameId] = useState<number | null>(game?.id ?? null)
 
   // Reset do estado de erro da arte quando o jogo muda: ajustar estado durante
-  // o render (padrão React) em vez de setState dentro de effect.
-  if (activeGameId !== game?.id) {
+  // o render (padrão React) em vez de setState dentro de effect. O guard
+  // compara com o MESMO valor que é setado (game?.id ?? null) — comparar com
+  // game?.id puro deixaria null !== undefined para sempre com game=null
+  // (loop infinito de renders no browser real com o React Compiler).
+  if (activeGameId !== (game?.id ?? null)) {
     setActiveGameId(game?.id ?? null)
     setSvgFailed(false)
   }

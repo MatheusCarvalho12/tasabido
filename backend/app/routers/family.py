@@ -2,12 +2,35 @@
 
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 
 from app.deps import CurrentFamily, DbSession
-from app.schemas import PinRequest, PinSetResponse, PinValidateResponse
+from app.models import Child
+from app.schemas import (
+    ChildOut,
+    ChildrenListResponse,
+    PinRequest,
+    PinSetResponse,
+    PinValidateResponse,
+)
 from app.security import DUMMY_PASSWORD_HASH, hash_password, verify_password
 
 router = APIRouter(prefix="/api/family", tags=["family"])
+
+# Crianças da família (contrato do front: GET /api/children, envelope {items}).
+children_router = APIRouter(prefix="/api", tags=["family"])
+
+
+@children_router.get("/children", response_model=ChildrenListResponse)
+def list_children(
+    db: DbSession,
+    current_user: CurrentFamily,
+) -> ChildrenListResponse:
+    """Crianças da família autenticada — alimenta a saudação \"Oi, {nome}\" do modo criança."""
+    children = db.scalars(
+        select(Child).where(Child.user_id == current_user.id).order_by(Child.created_at)
+    ).all()
+    return ChildrenListResponse(items=[ChildOut.model_validate(child) for child in children])
 
 
 @router.post("/pin/validate", response_model=PinValidateResponse)
