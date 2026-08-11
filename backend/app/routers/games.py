@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.deps import CurrentUser, DbSession, OptionalUser
+from app.deps import GAME_NOT_FOUND, CurrentUser, DbSession, OptionalUser
 from app.game_stats import game_out, stats_for_games
 from app.models import Game, GameRun, User
 from app.schemas import (
@@ -43,7 +43,6 @@ _IMAGE_MEDIA_TYPES = {
 _SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
 
 _SVG_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, detail="SVG não encontrado")
-_GAME_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, detail="Jogo não encontrado")
 _IMAGE_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, detail="Imagem não encontrada")
 
 
@@ -73,7 +72,7 @@ def _get_owned_game(db: Session, game_id: int, user: User) -> Game:
     """Jogo existente e de propriedade do profissional (403 para jogo de outro)."""
     game = db.get(Game, game_id)
     if game is None:
-        raise _GAME_NOT_FOUND
+        raise GAME_NOT_FOUND
     if game.criado_por != user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Você não é o dono deste jogo")
     return game
@@ -144,7 +143,7 @@ def game_stats(game_id: int, db: DbSession, current_user: CurrentUser) -> GameSt
     """Stats agregadas de um jogo (mesma agregação da lista)."""
     game = db.get(Game, game_id)
     if game is None:
-        raise _GAME_NOT_FOUND
+        raise GAME_NOT_FOUND
     return _stats(db, game.id)
 
 

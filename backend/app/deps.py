@@ -7,11 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User
+from app.models import Child, User
 from app.schemas import UserRole
 from app.security import decode_access_token
 
 UNAUTHENTICATED = HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Não autenticado")
+CHILD_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, detail="Criança não encontrada")
+GAME_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, detail="Jogo não encontrado")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
@@ -75,3 +77,14 @@ OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 
 CurrentFamily = Annotated[User, Depends(get_current_family)]
 CurrentProfessional = Annotated[User, Depends(get_current_professional)]
+
+
+def get_child_for_user(db: Session, child_id: UUID, user: User) -> Child:
+    """Criança acessível ao usuário: família só acessa os próprios filhos;
+    demais papéis acessam qualquer criança (404 sem vazar existência)."""
+    child = db.get(Child, child_id)
+    if child is None:
+        raise CHILD_NOT_FOUND
+    if user.role == UserRole.FAMILY.value and child.user_id != user.id:
+        raise CHILD_NOT_FOUND
+    return child

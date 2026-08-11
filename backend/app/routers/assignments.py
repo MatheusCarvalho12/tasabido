@@ -7,30 +7,23 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.deps import CurrentProfessional, CurrentUser, DbSession
+from app.deps import (
+    CHILD_NOT_FOUND,
+    GAME_NOT_FOUND,
+    CurrentProfessional,
+    CurrentUser,
+    DbSession,
+    get_child_for_user,
+)
 from app.game_stats import game_out, stats_for_games
-from app.models import Child, Game, GameAssignment, User
+from app.models import Child, Game, GameAssignment
 from app.schemas import (
     AssignmentCreate,
     AssignmentListResponse,
     AssignmentOut,
-    UserRole,
 )
 
 router = APIRouter(prefix="/api", tags=["assignments"])
-
-_CHILD_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, detail="Criança não encontrada")
-_GAME_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, detail="Jogo não encontrado")
-
-
-def _get_child_for_user(db: Session, child_id: uuid.UUID, user: User) -> Child:
-    """Criança acessível ao usuário: família só vê a própria (404 sem vazar existência)."""
-    child = db.get(Child, child_id)
-    if child is None:
-        raise _CHILD_NOT_FOUND
-    if user.role == UserRole.FAMILY.value and child.user_id != user.id:
-        raise _CHILD_NOT_FOUND
-    return child
 
 
 def _assignment_out(db: Session, assignment: GameAssignment, game: Game) -> AssignmentOut:
@@ -49,7 +42,7 @@ def list_child_assignments(
     current_user: CurrentUser,
 ) -> AssignmentListResponse:
     """ "Para casa" da criança: jogos delegados pelo profissional, mais recentes primeiro."""
-    _get_child_for_user(db, child_id, current_user)
+    get_child_for_user(db, child_id, current_user)
     rows = db.execute(
         select(GameAssignment, Game)
         .join(Game, Game.id == GameAssignment.game_id)
@@ -70,10 +63,10 @@ def create_assignment(
     """Delega um jogo para a criança (409 quando a tarefa já existe)."""
     game = db.get(Game, payload.game_id)
     if game is None:
-        raise _GAME_NOT_FOUND
+        raise GAME_NOT_FOUND
     child = db.get(Child, payload.child_id)
     if child is None:
-        raise _CHILD_NOT_FOUND
+        raise CHILD_NOT_FOUND
     assignment = GameAssignment(
         game_id=payload.game_id,
         child_id=payload.child_id,
