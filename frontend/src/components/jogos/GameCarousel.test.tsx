@@ -1,26 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { GameCarousel } from '@/components/jogos/GameCarousel'
 import type { Game } from '@/types/game'
-
-// O carrossel usa <Link> do TanStack Router; fora do router, renderizamos como <a>.
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({
-    to,
-    children,
-    'aria-label': ariaLabel,
-  }: {
-    to: string
-    children?: ReactNode
-    'aria-label'?: string
-  }) => (
-    <a href={String(to)} aria-label={ariaLabel}>
-      {children}
-    </a>
-  ),
-}))
 
 function fakeGame(id: number, titulo: string): Game {
   return {
@@ -72,7 +54,7 @@ afterEach(() => {
 })
 
 describe('GameCarousel', () => {
-  it('renderiza título, "Ver todos" e os jogos', () => {
+  it('renderiza o título da seção e os jogos', () => {
     render(
       <GameCarousel
         sectionId="mais-jogados"
@@ -85,9 +67,8 @@ describe('GameCarousel', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'Mais jogados' })).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: 'Ver todos os jogos de Mais jogados' }),
-    ).toBeInTheDocument()
+    // Sem "Ver todos": o link foi removido por não haver página de destino.
+    expect(screen.queryByRole('link', { name: /Ver todos/ })).not.toBeInTheDocument()
     // O DOM é triplicado para o loop infinito — os cards aparecem 3x.
     expect(screen.getAllByRole('button', { name: /Escreva seu nome/ }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('button', { name: /Trace o caminho/ }).length).toBeGreaterThan(0)

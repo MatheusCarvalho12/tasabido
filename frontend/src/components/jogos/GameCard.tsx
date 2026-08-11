@@ -39,7 +39,7 @@ export function GameCard({ game, badge, onSelect }: GameCardProps) {
         onSelect(game, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
       }}
       aria-label={`${game.titulo}. Nota ${scoreLabel} de 5. ${formatCompactCount(game.stats.partidas)} jogadas${badge === 'checklist' ? '. Para casa' : ''}`}
-      className="group w-44 shrink-0 overflow-hidden rounded-2xl bg-white text-left shadow-clay-white transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-clay focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue sm:w-52 lg:w-56"
+      className="group w-44 shrink-0 overflow-hidden rounded-2xl bg-white text-left shadow-kid-card transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-kid-card-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue sm:w-52 lg:w-56"
     >
       <div
         className="relative aspect-square overflow-hidden"

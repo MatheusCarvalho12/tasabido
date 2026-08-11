@@ -1,5 +1,4 @@
-import { ArrowRight, CaretLeft, CaretRight } from '@phosphor-icons/react'
-import { Link } from '@tanstack/react-router'
+import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 
 import { type CardOrigin, GameCard } from '@/components/jogos/GameCard'
@@ -147,19 +146,12 @@ export function GameCarousel({
 
   return (
     <section aria-labelledby={`${sectionId}-title`} className="relative">
-      <div className="mb-3 flex items-end justify-between gap-3 px-4 sm:px-0">
-        <h2 id={`${sectionId}-title`} className="text-lg font-semibold text-navy sm:text-xl">
-          {title}
-        </h2>
-        <Link
-          to="/jogos"
-          aria-label={`Ver todos os jogos de ${title}`}
-          className="flex shrink-0 items-center gap-0.5 text-sm font-bold text-navy/60 transition-colors hover:text-turquoise-dark"
-        >
-          Ver todos
-          <ArrowRight weight="bold" aria-hidden="true" className="size-4" />
-        </Link>
-      </div>
+      <h2
+        id={`${sectionId}-title`}
+        className="mb-3 px-4 text-lg font-semibold text-navy sm:px-0 sm:text-xl"
+      >
+        {title}
+      </h2>
 
       <div className="relative">
         {showChrome && (
@@ -206,7 +198,7 @@ export function GameCarousel({
           onPointerLeave={() => {
             dragRef.current = null
           }}
-          className="touch-pan-x select-none overflow-x-auto px-4 pb-2 pt-1 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="touch-pan-x select-none overflow-x-auto px-4 pb-5 pt-1 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <ul className="flex gap-4">
             {state === 'loading' &&
