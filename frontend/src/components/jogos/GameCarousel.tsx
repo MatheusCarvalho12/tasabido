@@ -204,7 +204,7 @@ export function GameCarousel({
             {state === 'loading' &&
               SKELETON_KEYS.map((key) => (
                 <li key={key} data-carousel-card className="w-44 shrink-0 sm:w-52 lg:w-56">
-                  <Skeleton className="aspect-square w-full rounded-2xl" />
+                  <Skeleton className="aspect-[1.8/1] w-full rounded-[20px]" />
                   <Skeleton className="mt-2.5 h-4 w-3/4 rounded-full" />
                   <Skeleton className="mt-1.5 h-3 w-1/2 rounded-full" />
                 </li>

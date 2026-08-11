@@ -38,6 +38,15 @@ export async function fetchPublicGamesApi(): Promise<GameListResponse> {
   return requestList<GameListResponse>('/api/games', { scope: 'public' })
 }
 
+/**
+ * Ordena jogos por título (A→Z, pt-BR, sem diferenciar maiúsculas) — a seção
+ * "Jogos públicos" da tela de jogos usa esta ordem; "Mais jogados" mantém a
+ * ordem do backend (partidas desc). Não muta a lista recebida.
+ */
+export function sortGamesByTitle(games: Game[]): Game[] {
+  return [...games].sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'))
+}
+
 /** GET /api/children/{childId}/assignments — "Para casa" da criança. */
 export async function fetchAssignmentsApi(childId: string): Promise<GameListResponse> {
   return requestList<GameListResponse>(`/api/children/${childId}/assignments`)

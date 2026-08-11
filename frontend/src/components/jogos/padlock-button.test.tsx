@@ -22,7 +22,7 @@ describe('PadlockButton', () => {
     vi.useRealTimers()
   })
 
-  it('dispara onUnlocked depois de segurar por 1s', async () => {
+  it('dispara onUnlocked depois de segurar por 600ms', async () => {
     const { onUnlocked } = await renderPadlock()
     const button = screen.getByRole('button', { name: 'Abrir a área dos pais' })
 

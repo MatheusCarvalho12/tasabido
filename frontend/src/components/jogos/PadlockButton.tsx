@@ -5,10 +5,10 @@ import { useRef, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 
-export const HOLD_MS = 1000
+export const HOLD_MS = 600
 
 interface PadlockButtonProps {
-  /** Disparado quando o hold de 1s completa. Padrão: navega para /pin. */
+  /** Disparado quando o hold de 600ms completa. Padrão: navega para /pin. */
   onUnlocked?: () => void
   /** Aria-label do botão. */
   label?: string
@@ -20,12 +20,12 @@ interface PadlockButtonProps {
  *
  * Estados:
  * - idle: cadeado turquesa pequeno, sem anel;
- * - segurando (press-and-hold >= 1s): anel de progresso enchendo ao redor;
+ * - segurando (press-and-hold >= 600ms): anel de progresso enchendo ao redor;
  * - soltou antes de completar: volta ao idle, sem navegar;
  * - completou: `onUnlocked` (padrão: abre o fluxo de PIN em /pin).
  *
  * O anel é puramente visual (motion/react); o disparo real vem de um timer
- * de 1s — testável com fake timers e imune a falhas de animação.
+ * de 600ms — testável com fake timers e imune a falhas de animação.
  */
 export function PadlockButton({
   onUnlocked,
@@ -95,7 +95,7 @@ export function PadlockButton({
       )}
     >
       <LockKey weight="fill" aria-hidden="true" className="size-6" />
-      {/* Anel de progresso: enche em 1s enquanto segura, volta se soltar. */}
+      {/* Anel de progresso: enche em 600ms enquanto segura, volta se soltar. */}
       <svg
         aria-hidden="true"
         viewBox="0 0 64 64"

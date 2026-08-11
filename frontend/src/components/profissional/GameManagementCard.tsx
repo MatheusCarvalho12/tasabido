@@ -1,11 +1,8 @@
 import { EyeSlash, PaperPlaneTilt, PencilSimple } from '@phosphor-icons/react'
 
-import { resolveAssetUrl } from '@/lib/api'
+import { GameThumb } from '@/components/shared/GameThumb'
 import { categoriaLabel } from '@/lib/games'
 import type { Game } from '@/types/game'
-
-/** Paleta de reserva quando o jogo não tem cores no contrato (mesma do GameCard). */
-const FALLBACK_COLORS = ['#04a4ab', '#0d79f0', '#f6552d', '#f29e21', '#9372d5']
 
 export interface GameManagementCardProps {
   game: Game
@@ -29,39 +26,16 @@ export function GameManagementCard({
   onToggleStatus,
   busy,
 }: GameManagementCardProps) {
-  const thumbnailColor = game.cores[0] ?? FALLBACK_COLORS[game.id % FALLBACK_COLORS.length]
-  const thumbUrl = resolveAssetUrl(game.thumb_url)
-  const svgUrl = resolveAssetUrl(game.svg_url)
   const published = game.status === 'published'
 
   return (
     <article className="flex items-center gap-4 rounded-3xl bg-white p-4 shadow-kid-card transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-kid-card-hover">
-      <div
-        className="relative flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl sm:size-28"
-        style={{ backgroundColor: thumbnailColor }}
-      >
-        {thumbUrl ? (
-          <img
-            src={thumbUrl}
-            alt=""
-            loading="lazy"
-            draggable={false}
-            className="h-full w-full object-cover"
-          />
-        ) : svgUrl ? (
-          <img
-            src={svgUrl}
-            alt=""
-            loading="lazy"
-            draggable={false}
-            className="h-full w-full object-contain p-2.5"
-          />
-        ) : (
-          <span className="px-2 text-center text-sm font-bold leading-tight text-white drop-shadow-[0_2px_6px_rgb(0_0_0/0.25)]">
-            {game.titulo}
-          </span>
-        )}
-      </div>
+      <GameThumb
+        game={game}
+        className="size-24 shrink-0 rounded-2xl sm:size-28"
+        svgClassName="p-2.5"
+        titleClassName="px-2 text-sm"
+      />
 
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">

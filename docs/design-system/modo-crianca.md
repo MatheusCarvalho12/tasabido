@@ -169,7 +169,7 @@ Card clicável do carrossel. Ao clicar, abre o PreviewModal crescendo a partir d
 | Proporção do card | `1.3:1` (ex.: 280×215px desktop; ~250×190px mobile) |
 | Thumbnail | **retangular wide ~1.7–1.8:1** (ex.: 280×155px), **~72% da altura do card** |
 | Corpo branco | ~28% da altura (título + stats) |
-| Raio | `--radius-kid-card` (24px) |
+| Raio | `--radius-kid-card` (24px) — frontend afina para **20px** (decisão registrada em §6#3) |
 | Sombra | `--shadow-kid-card` (hover: `--shadow-kid-card-hover`) |
 | Título | `kid-card-title` (18px/700), 1 linha, truncado com `…` |
 | Stats | `kid-card-stats`: ★ `--kid-star` + nota `--kid-heading` + `·` + contagem `--kid-muted` ("2,1 mil jogadas") |
@@ -437,7 +437,7 @@ idle ──(clique pressionado e segurar)──► segurando ──(anel complet
 |---|---|---|
 | 1 | Thumbnail do card: spec dizia "quadrada 1:1 ~65%"; refs mostram **retangular wide ~1.8:1 ~72%** | **Retangular wide** (seguir v2) |
 | 2 | Badge de tarefa: v2 = canto **superior esquerdo**, quadrado arredondado; mobile = canto **superior direito**, circular | **Superior esquerdo, quadrado arredondado** (seguir v2, mais recente) |
-| 3 | Raio do card: medição visual ~16–20px vs spec 24px | **24px canônico** (spec); frontend pode afinar até 20px se 24px parecer exagerado na tela real — registrar decisão |
+| 3 | Raio do card: medição visual ~16–20px vs spec 24px | **24px canônico** (spec); frontend pode afinar até 20px se 24px parecer exagerado na tela real — registrar decisão. **Decisão registrada (code review PR #6): o frontend usa 20px** (`rounded-[20px]` no GameCard, §2.1) — afinação dentro da faixa permitida |
 | 4 | Cards por viewport: 5 (desktop v2) vs 6 (mobile landscape) | 5 desktop / ~2.5 mobile com peek — responsivo do carrossel, não conflito |
 | 5 | Badge "12" (estrela de nível) presente nas refs | **Removido por regra do usuário** — não implementar (§4.1) |
 | 6 | Fundo do banner do PreviewModal: azul (`#69B9EE`, macaco) vs turquesa (`#20C2C2`, letra T) | Cor do banner = **cor pastel do jogo** (`--kid-thumb-*`); cada jogo usa a sua |

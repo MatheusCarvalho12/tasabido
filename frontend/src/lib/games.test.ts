@@ -8,7 +8,27 @@ import {
   formatScore,
   formatScoreStars,
   formatTempoMedio,
+  sortGamesByTitle,
 } from '@/lib/games'
+import type { Game } from '@/types/game'
+
+function fakeGame(id: number, titulo: string): Game {
+  return {
+    id,
+    slug: `jogo-${id}`,
+    titulo,
+    descricao: '',
+    tutorial: '',
+    categoria: 'escrita',
+    visibilidade: 'public',
+    status: 'published',
+    svg_url: null,
+    thumb_url: null,
+    banner_url: null,
+    cores: ['#08ADAE'],
+    stats: { partidas: 0, tempo_medio_min: 0, score_medio: 0 },
+  }
+}
 
 describe('formatCompactCount', () => {
   it('formata números abaixo de mil sem sufixo', () => {
@@ -97,5 +117,25 @@ describe('categoriaLabel', () => {
 
   it('humaniza categoria desconhecida como fallback', () => {
     expect(categoriaLabel('jogo-novo')).toBe('Jogo Novo')
+  })
+})
+
+describe('sortGamesByTitle', () => {
+  it('ordena por título A→Z sem diferenciar maiúsculas', () => {
+    const games = [fakeGame(1, 'Zebra'), fakeGame(2, 'abelha'), fakeGame(3, 'Macaco')]
+    const sorted = sortGamesByTitle(games)
+
+    expect(sorted.map((g) => g.titulo)).toEqual(['abelha', 'Macaco', 'Zebra'])
+  })
+
+  it('não muta a lista recebida (a seção "Mais jogados" mantém a ordem do backend)', () => {
+    const games = [fakeGame(1, 'Zebra'), fakeGame(2, 'Abelha')]
+    sortGamesByTitle(games)
+
+    expect(games.map((g) => g.titulo)).toEqual(['Zebra', 'Abelha'])
+  })
+
+  it('lista vazia continua vazia', () => {
+    expect(sortGamesByTitle([])).toEqual([])
   })
 })

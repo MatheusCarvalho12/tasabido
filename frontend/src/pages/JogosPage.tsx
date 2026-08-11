@@ -10,7 +10,13 @@ import { GamesHeader } from '@/components/jogos/GamesHeader'
 import { RotateHint } from '@/components/jogos/RotateHint'
 import { ApiRequestError, fetchMeApi } from '@/lib/api'
 import { clearAuth, getToken } from '@/lib/auth'
-import { fetchAssignmentsApi, fetchChildrenApi, fetchPublicGamesApi } from '@/lib/games'
+import {
+  fetchAssignmentsApi,
+  fetchChildrenApi,
+  fetchPublicGamesApi,
+  sortGamesByTitle,
+} from '@/lib/games'
+import { lockLandscape, unlockOrientation } from '@/lib/orientation'
 import type { Game } from '@/types/game'
 
 /**
@@ -65,9 +71,20 @@ export function JogosPage() {
     }
   }, [meQuery.error, navigate])
 
+  // Modo criança é HORIZONTAL fixo (regra do usuário, doc §4.3): trava em
+  // landscape ao entrar na tela de jogos e destrava ao sair (o PIN relocka
+  // portrait). O RotateHint continua como fallback onde não há suporte.
+  useEffect(() => {
+    void lockLandscape()
+    return () => unlockOrientation()
+  }, [])
+
   const childName = childrenQuery.data?.items[0]?.name
   const publicGames = publicGamesQuery.data?.items
   const assignments = assignmentsQuery.data?.items
+  // "Jogos públicos" ≠ "Mais jogados": a seção alfabética usa a MESMA lista
+  // pública do endpoint único, só com ordem diferente (título A→Z).
+  const publicGamesByTitle = sortGamesByTitle(publicGames ?? [])
 
   const openPreview = (game: Game, origin: CardOrigin) => {
     setPreviewGame(game)
@@ -129,7 +146,7 @@ export function JogosPage() {
           sectionId="jogos-publicos"
           title="Jogos públicos"
           emptyMessage="Ainda não há jogos públicos publicados."
-          games={publicGames}
+          games={publicGamesByTitle}
           state={carouselState(publicGamesQuery)}
           onRetry={() => void publicGamesQuery.refetch()}
           onSelect={openPreview}
