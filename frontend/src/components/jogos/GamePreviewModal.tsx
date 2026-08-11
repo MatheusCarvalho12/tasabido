@@ -1,7 +1,7 @@
 import { ChartBarHorizontal, Clock, Play, Star, X } from '@phosphor-icons/react'
 import { useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 import mascoteUrl from '@/assets/mascote.png'
 import { resolveAssetUrl } from '@/lib/api'
@@ -59,19 +59,25 @@ export function GamePreviewModal({ game, onClose, onPlay, origin }: GamePreviewM
   const closeRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
   const [svgFailed, setSvgFailed] = useState(false)
+  const [activeGameId, setActiveGameId] = useState<number | null>(game?.id ?? null)
+
+  // Reset do estado de erro da arte quando o jogo muda: ajustar estado durante
+  // o render (padrão React) em vez de setState dentro de effect.
+  if (activeGameId !== game?.id) {
+    setActiveGameId(game?.id ?? null)
+    setSvgFailed(false)
+  }
 
   const svgUrl = game ? resolveAssetUrl(game.svg_url) : undefined
   // Banner na cor pastel do jogo (cores[0] do contrato; fallback kid-thumb-blue).
   const artColor = game?.cores[0] ?? '#79b9e5'
 
   // Deslocamento inicial relativo ao centro da tela (origem do card).
-  const originOffset = useMemo(() => {
-    if (!origin || typeof window === 'undefined') return { x: 0, y: 0 }
-    return {
-      x: origin.x - window.innerWidth / 2,
-      y: origin.y - window.innerHeight / 2,
-    }
-  }, [origin])
+  // Calculado direto — o React Compiler memoiza quando necessário.
+  const originOffset =
+    !origin || typeof window === 'undefined'
+      ? { x: 0, y: 0 }
+      : { x: origin.x - window.innerWidth / 2, y: origin.y - window.innerHeight / 2 }
 
   // Abre: foca o fechar, trava o scroll, guarda o foco anterior (restaura ao fechar).
   useEffect(() => {
@@ -79,7 +85,6 @@ export function GamePreviewModal({ game, onClose, onPlay, origin }: GamePreviewM
     const previouslyFocused = document.activeElement as HTMLElement | null
     closeRef.current?.focus()
     document.body.style.overflow = 'hidden'
-    setSvgFailed(false)
     return () => {
       document.body.style.overflow = ''
       previouslyFocused?.focus()
