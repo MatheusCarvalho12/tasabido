@@ -5,8 +5,8 @@ import {
   Outlet,
   redirect,
 } from '@tanstack/react-router'
-
-import { getToken } from '@/lib/auth'
+import { PinScreen } from '@/components/jogos/PinScreen'
+import { getStoredUser, getToken } from '@/lib/auth'
 import { CadastroFamiliaPage } from '@/pages/CadastroFamiliaPage'
 import { CadastroFinalizarPage } from '@/pages/CadastroFinalizarPage'
 import { CadastroPage } from '@/pages/CadastroPage'
@@ -17,9 +17,13 @@ import { CadastroProfissionalSobrePage } from '@/pages/CadastroProfissionalSobre
 import { CadastroSobrePage } from '@/pages/CadastroSobrePage'
 import { ForgotPasswordStubPage } from '@/pages/ForgotPasswordStubPage'
 import { HomePage } from '@/pages/HomePage'
+import { JogoEmConstrucaoPage } from '@/pages/JogoEmConstrucaoPage'
+import { JogosPage } from '@/pages/JogosPage'
 import { LoginPage } from '@/pages/LoginPage'
+import { ParentsAreaPage } from '@/pages/ParentsAreaPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
 import { ProfessionalLoginPage } from '@/pages/ProfessionalLoginPage'
+import { useParentPinStore } from '@/stores/useParentPinStore'
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -54,8 +58,27 @@ const homeRoute = createRoute({
     if (!getToken()) {
       throw redirect({ to: '/login' })
     }
+    // Home pós-login da família = tela de jogos (modo criança).
+    if (getStoredUser()?.role === 'family') {
+      throw redirect({ to: '/jogos' })
+    }
   },
   component: HomePage,
+})
+
+const jogosRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/jogos',
+  beforeLoad: () => {
+    if (!getToken()) {
+      throw redirect({ to: '/login' })
+    }
+    // A tela de jogos é do modo criança; profissional segue na home antiga.
+    if (getStoredUser()?.role === 'professional') {
+      throw redirect({ to: '/' })
+    }
+  },
+  component: JogosPage,
 })
 
 const signupRoute = createRoute({
@@ -118,6 +141,30 @@ const privacyRoute = createRoute({
   component: PrivacyPage,
 })
 
+const jogarRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/jogar/$slug',
+  component: JogoEmConstrucaoPage,
+})
+
+const pinRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/pin',
+  component: PinScreen,
+})
+
+const parentsAreaRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/pais',
+  beforeLoad: () => {
+    // Área dos pais só abre com PIN validado (store). Sem desbloqueio → modo criança.
+    if (!useParentPinStore.getState().unlocked) {
+      throw redirect({ to: '/' })
+    }
+  },
+  component: ParentsAreaPage,
+})
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   loginRoute,
@@ -132,6 +179,10 @@ const routeTree = rootRoute.addChildren([
   signupProfissionalFinalizarRoute,
   forgotPasswordRoute,
   privacyRoute,
+  jogarRoute,
+  jogosRoute,
+  pinRoute,
+  parentsAreaRoute,
 ])
 
 export const router = createRouter({

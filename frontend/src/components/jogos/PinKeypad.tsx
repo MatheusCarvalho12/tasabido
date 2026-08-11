@@ -30,12 +30,11 @@ export function PinKeypad({ onDigit, onBackspace, disabled = false, className }:
   )
 
   return (
-    <div
+    <fieldset
       className={cn(
         'grid w-full max-w-75 grid-cols-3 gap-x-5 gap-y-4 sm:gap-x-6 sm:gap-y-5',
         className,
       )}
-      role="group"
       aria-label="Teclado do PIN"
     >
       {DIGITS.map((digit) => (
@@ -70,6 +69,6 @@ export function PinKeypad({ onDigit, onBackspace, disabled = false, className }:
       >
         <Backspace weight="bold" aria-hidden="true" className="size-9 text-blue-dark sm:size-10" />
       </button>
-    </div>
+    </fieldset>
   )
 }

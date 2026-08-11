@@ -1,13 +1,12 @@
 import { useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-
-import mascote from '@/assets/mascote.png'
 import logo from '@/assets/logo.png'
+import mascote from '@/assets/mascote.png'
 import { PinKeypad } from '@/components/jogos/PinKeypad'
 import { ApiRequestError } from '@/lib/api'
-import { validateParentPinApi } from '@/lib/parent-pin'
 import { lockPortrait, unlockOrientation } from '@/lib/orientation'
+import { validateParentPinApi } from '@/lib/parent-pin'
 import { useParentPinStore } from '@/stores/useParentPinStore'
 
 export const PIN_LENGTH = 6
@@ -27,21 +26,9 @@ function BigLockGraphic() {
     >
       {/* Anel segmentado com aberturas (abertura principal no topo) */}
       <g fill="none" strokeLinecap="round">
-        <path
-          d="M 31 158 A 90 90 0 0 1 42 31"
-          stroke="#EDE8DC"
-          strokeWidth="17"
-        />
-        <path
-          d="M 69 15 A 90 90 0 0 1 123 13"
-          stroke="#0d79f0"
-          strokeWidth="17"
-        />
-        <path
-          d="M 145 22 A 90 90 0 0 1 84 189"
-          stroke="#04a4ab"
-          strokeWidth="17"
-        />
+        <path d="M 31 158 A 90 90 0 0 1 42 31" stroke="#EDE8DC" strokeWidth="17" />
+        <path d="M 69 15 A 90 90 0 0 1 123 13" stroke="#0d79f0" strokeWidth="17" />
+        <path d="M 145 22 A 90 90 0 0 1 84 189" stroke="#04a4ab" strokeWidth="17" />
       </g>
       {/* Cadeado */}
       <g>
@@ -52,15 +39,17 @@ function BigLockGraphic() {
           strokeWidth="15"
           strokeLinecap="round"
         />
+        <rect x="66" y="90" width="68" height="72" rx="22" fill="url(#lock-body)" />
         <rect
           x="66"
           y="90"
           width="68"
           height="72"
           rx="22"
-          fill="url(#lock-body)"
+          fill="none"
+          stroke="#079a9f"
+          strokeWidth="2"
         />
-        <rect x="66" y="90" width="68" height="72" rx="22" fill="none" stroke="#079a9f" strokeWidth="2" />
         {/* Keyhole */}
         <circle cx="100" cy="116" r="8.5" fill="#00515d" />
         <rect x="94.5" y="120" width="11" height="19" rx="5.5" fill="#00515d" />
@@ -77,6 +66,8 @@ function BigLockGraphic() {
 }
 
 /** Linha de 6 indicadores: preenchidos conforme o PIN digitado. */
+const DOT_IDS = ['pin-1', 'pin-2', 'pin-3', 'pin-4', 'pin-5', 'pin-6'] as const
+
 function PinDots({ count, errorKey }: { count: number; errorKey: number }) {
   return (
     <motion.div
@@ -87,9 +78,9 @@ function PinDots({ count, errorKey }: { count: number; errorKey: number }) {
       role="img"
       aria-label={`${count} de ${PIN_LENGTH} dígitos digitados`}
     >
-      {Array.from({ length: PIN_LENGTH }, (_, i) => (
+      {DOT_IDS.map((dotId, i) => (
         <span
-          key={i}
+          key={dotId}
           aria-hidden="true"
           className={
             i < count
@@ -243,10 +234,7 @@ export function PinScreen() {
 
         <div aria-live="polite">
           {errorMsg && (
-            <p
-              role="alert"
-              className="text-sm font-bold text-coral-dark sm:text-base"
-            >
+            <p role="alert" className="text-sm font-bold text-coral-dark sm:text-base">
               {errorMsg}
             </p>
           )}
