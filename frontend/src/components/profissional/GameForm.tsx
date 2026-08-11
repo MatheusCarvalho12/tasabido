@@ -7,7 +7,7 @@ import {
   PaperPlaneTilt,
   PencilSimple,
 } from '@phosphor-icons/react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import { FileUploadField } from '@/components/profissional/FileUploadField'
 import { Field, FieldContent, FieldError, FieldLabel } from '@/components/ui/field'
@@ -76,10 +76,14 @@ export function GameForm({ game, submitting, submitError, onSubmit, onCancel }: 
   const [bannerFile, setBannerFile] = useState<File | null>(null)
   const [errors, setErrors] = useState<Partial<Record<keyof GameFormValues, string>>>({})
 
-  const parsed = useMemo(
-    () => gameFormSchema.safeParse({ titulo, categoria, descricao, tutorial, visibilidade, cores }),
-    [titulo, categoria, descricao, tutorial, visibilidade, cores],
-  )
+  const parsed = gameFormSchema.safeParse({
+    titulo,
+    categoria,
+    descricao,
+    tutorial,
+    visibilidade,
+    cores,
+  })
 
   const clearError = (field: keyof GameFormValues) =>
     setErrors((current) => ({ ...current, [field]: undefined }))
