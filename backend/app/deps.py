@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
+from app.schemas import UserRole
 from app.security import decode_access_token
 
 UNAUTHENTICATED = HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Não autenticado")
@@ -37,3 +38,19 @@ def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def get_current_family(current_user: CurrentUser) -> User:
+    if current_user.role != UserRole.FAMILY.value:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Acesso restrito a famílias")
+    return current_user
+
+
+def get_current_professional(current_user: CurrentUser) -> User:
+    if current_user.role != UserRole.PROFESSIONAL.value:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Acesso restrito a profissionais")
+    return current_user
+
+
+CurrentFamily = Annotated[User, Depends(get_current_family)]
+CurrentProfessional = Annotated[User, Depends(get_current_professional)]

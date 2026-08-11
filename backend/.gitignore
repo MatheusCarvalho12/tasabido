@@ -5,3 +5,5 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+# SVGs enviados em runtime (uploads do profissional) — o seed/ fica versionado.
+storage/svgs/*.svg

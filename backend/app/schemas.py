@@ -1,6 +1,6 @@
 import re
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Self
@@ -165,9 +165,9 @@ _BRAZILIAN_UFS = frozenset(
         "PI",
         "RJ",
         "RN",
-        "RS",
         "RO",
         "RR",
+        "RS",
         "SC",
         "SP",
         "SE",
@@ -446,3 +446,205 @@ class AuthResponse(BaseModel):
 
 class MeResponse(BaseModel):
     user: UserOut
+
+
+# ── Modo criança: jogos ────────────────────────────────────────────────────────
+
+
+class GameVisibility(StrEnum):
+    PUBLIC = "public"
+    PRIVATE = "private"
+
+
+class GameStatus(StrEnum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+
+
+# Cor no formato #RRGGBB (hex), igual ao contrato com o front. Normaliza para
+# maiúsculas para o valor canônico ficar estável no banco.
+_COR_PATTERN = re.compile(r"^#[0-9A-Fa-f]{6}$")
+_MAX_CORES = 10
+_MAX_TEXTO_JOGO = 5000
+
+
+def _validate_cor(value: str) -> str:
+    cor = value.strip().upper()
+    if _COR_PATTERN.fullmatch(cor) is None:
+        raise ValueError("Cor inválida — use o formato #RRGGBB (ex.: #08ADAE)")
+    return cor
+
+
+ColorValue = Annotated[str, AfterValidator(_validate_cor)]
+
+
+def _validate_titulo(value: str) -> str:
+    titulo = value.strip()
+    if len(titulo) < 2:
+        raise ValueError("O título do jogo precisa ter pelo menos 2 caracteres")
+    if len(titulo) > 200:
+        raise ValueError("O título do jogo pode ter no máximo 200 caracteres")
+    return titulo
+
+
+def _validate_texto_jogo(value: str, label: str) -> str:
+    texto = value.strip()
+    if not texto:
+        raise ValueError(f"{label} é obrigatória")
+    if len(texto) > _MAX_TEXTO_JOGO:
+        raise ValueError(f"{label} pode ter no máximo {_MAX_TEXTO_JOGO} caracteres")
+    return texto
+
+
+def _validate_categoria(value: str) -> str:
+    categoria = value.strip()
+    if not categoria:
+        raise ValueError("A categoria é obrigatória")
+    if len(categoria) > 50:
+        raise ValueError("A categoria pode ter no máximo 50 caracteres")
+    return categoria
+
+
+class GameCreate(BaseModel):
+    titulo: str
+    descricao: str
+    tutorial: str
+    categoria: str
+    visibilidade: GameVisibility = GameVisibility.PUBLIC
+    cores: list[ColorValue] = Field(default_factory=list, max_length=_MAX_CORES)
+
+    @field_validator("titulo")
+    @classmethod
+    def _titulo_valid(cls, value: str) -> str:
+        return _validate_titulo(value)
+
+    @field_validator("descricao")
+    @classmethod
+    def _descricao_valid(cls, value: str) -> str:
+        return _validate_texto_jogo(value, "A descrição")
+
+    @field_validator("tutorial")
+    @classmethod
+    def _tutorial_valid(cls, value: str) -> str:
+        return _validate_texto_jogo(value, "O tutorial")
+
+    @field_validator("categoria")
+    @classmethod
+    def _categoria_valid(cls, value: str) -> str:
+        return _validate_categoria(value)
+
+
+class GameUpdate(BaseModel):
+    titulo: str | None = None
+    descricao: str | None = None
+    tutorial: str | None = None
+    categoria: str | None = None
+    visibilidade: GameVisibility | None = None
+    status: GameStatus | None = None
+    cores: list[ColorValue] | None = Field(default=None, max_length=_MAX_CORES)
+
+    @field_validator("titulo")
+    @classmethod
+    def _titulo_valid(cls, value: str | None) -> str | None:
+        return _validate_titulo(value) if value is not None else None
+
+    @field_validator("descricao")
+    @classmethod
+    def _descricao_valid(cls, value: str | None) -> str | None:
+        return _validate_texto_jogo(value, "A descrição") if value is not None else None
+
+    @field_validator("tutorial")
+    @classmethod
+    def _tutorial_valid(cls, value: str | None) -> str | None:
+        return _validate_texto_jogo(value, "O tutorial") if value is not None else None
+
+    @field_validator("categoria")
+    @classmethod
+    def _categoria_valid(cls, value: str | None) -> str | None:
+        return _validate_categoria(value) if value is not None else None
+
+
+# ── Modo criança: contrato do front (frontend/src/types/game.ts) ──────────────
+
+
+class GameStats(BaseModel):
+    partidas: int = 0
+    tempo_medio_min: int = 0
+    score_medio: int = 0
+
+
+class GameOut(BaseModel):
+    id: int
+    slug: str
+    titulo: str
+    descricao: str
+    tutorial: str
+    categoria: str
+    visibilidade: str
+    status: str
+    svg_url: str | None
+    cores: list[str]
+    stats: GameStats
+
+
+class GameListResponse(BaseModel):
+    items: list[GameOut]
+
+
+class AssignmentOut(GameOut):
+    # Id da TAREFA (game_assignments.id), não do jogo: é o que o DELETE
+    # /api/assignments/{id} espera. O front (types/game.ts) ainda não consome;
+    # a integração T8 pode tipar quando precisar.
+    assignment_id: int
+    # Presente apenas em GET /api/children/{child_id}/assignments.
+    atribuido_em: datetime
+
+
+class AssignmentListResponse(BaseModel):
+    items: list[AssignmentOut]
+
+
+class AssignmentCreate(BaseModel):
+    child_id: uuid.UUID
+    game_id: int
+
+
+class GameRunCreate(BaseModel):
+    game_id: int
+    child_id: uuid.UUID
+    score: int = Field(ge=0, le=100)
+    duration_seconds: int = Field(ge=0)
+
+
+class GameRunOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    game_id: int
+    child_id: uuid.UUID
+    score: int
+    duration_seconds: int
+    created_at: datetime
+
+
+class PinRequest(BaseModel):
+    pin: str
+
+    @field_validator("pin")
+    @classmethod
+    def _pin_has_six_digits(cls, value: str) -> str:
+        if re.fullmatch(r"\d{6}", value) is None:
+            raise ValueError("O PIN precisa ter exatamente 6 dígitos")
+        return value
+
+
+class PinValidateResponse(BaseModel):
+    valido: bool
+
+
+class PinSetResponse(BaseModel):
+    ok: bool
+
+
+class SvgUploadResponse(BaseModel):
+    svg_url: str

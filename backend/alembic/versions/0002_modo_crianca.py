@@ -189,6 +189,13 @@ def upgrade() -> None:
         ],
     )
 
+    # O seed insere ids explícitos (1-6), mas a sequência do Identity não avança
+    # com isso — sem sincronizar, o primeiro INSERT gerado colidiria com o seed
+    # (duplicate key pk_games). Alinha a sequência ao maior id inserido.
+    op.execute(
+        sa.text("SELECT setval(pg_get_serial_sequence('games', 'id'), (SELECT MAX(id) FROM games))")
+    )
+
 
 def downgrade() -> None:
     op.drop_index("ix_game_runs_game_id", table_name="game_runs")
