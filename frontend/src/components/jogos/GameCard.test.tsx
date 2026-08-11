@@ -15,6 +15,8 @@ function fakeGame(overrides: Partial<Game> = {}): Game {
     visibilidade: 'public',
     status: 'published',
     svg_url: '/api/games/1/svg',
+    thumb_url: null,
+    banner_url: null,
     cores: ['#08ADAE'],
     stats: { partidas: 2100, tempo_medio_min: 12, score_medio: 96 },
     ...overrides,
@@ -75,5 +77,37 @@ describe('GameCard', () => {
 
     expect(screen.getByText('0 jogadas')).toBeInTheDocument()
     expect(screen.getByText('0')).toBeInTheDocument()
+  })
+
+  it('com thumb_url renderiza a thumbnail real (object-cover) no lugar do SVG', () => {
+    const { container } = render(
+      <GameCard game={fakeGame({ thumb_url: '/api/games/1/thumb' })} onSelect={vi.fn()} />,
+    )
+
+    expect(container.querySelector('img[src$="/api/games/1/thumb"]')).not.toBeNull()
+    // Prioridade da thumb: o SVG não é renderizado enquanto ela existe.
+    expect(container.querySelector('img[src$="/api/games/1/svg"]')).toBeNull()
+  })
+
+  it('sem thumb_url mantém o fallback atual (SVG sobre a cor pastel)', () => {
+    const { container } = render(<GameCard game={fakeGame()} onSelect={vi.fn()} />)
+
+    expect(container.querySelector('img[src$="/api/games/1/svg"]')).not.toBeNull()
+    expect(container.querySelector('img[src$="/thumb"]')).toBeNull()
+  })
+
+  it('thumbnail quebrada (onError) esconde o <img> e mostra o fallback', () => {
+    const { container } = render(
+      <GameCard game={fakeGame({ thumb_url: '/api/games/1/thumb' })} onSelect={vi.fn()} />,
+    )
+
+    const thumb = container.querySelector<HTMLImageElement>('img[src$="/api/games/1/thumb"]')
+    expect(thumb).not.toBeNull()
+    if (thumb) {
+      fireEvent.error(thumb)
+    }
+
+    expect(container.querySelector('img[src$="/thumb"]')).toBeNull()
+    expect(container.querySelector('img[src$="/api/games/1/svg"]')).not.toBeNull()
   })
 })

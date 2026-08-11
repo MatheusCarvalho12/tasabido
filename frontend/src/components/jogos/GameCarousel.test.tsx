@@ -15,6 +15,8 @@ function fakeGame(id: number, titulo: string): Game {
     visibilidade: 'public',
     status: 'published',
     svg_url: null,
+    thumb_url: null,
+    banner_url: null,
     cores: ['#08ADAE'],
     stats: { partidas: 2100, tempo_medio_min: 12, score_medio: 96 },
   }

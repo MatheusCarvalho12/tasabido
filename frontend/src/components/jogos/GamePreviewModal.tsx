@@ -49,9 +49,10 @@ function MetricChip({
 /**
  * Preview do jogo (modo criança) — design system oficial
  * (docs/design-system/modo-crianca.md §2.3/§2.4): cresce do card clicado
- * até o centro com --ease-kid-pop, backdrop borrado e escurecido, banner na
- * cor pastel do jogo, 3 MetricChips e o botãozão Jogar. Título, tutorial e
- * métricas vêm do contrato da API — zero mock.
+ * até o centro com --ease-kid-pop, backdrop borrado e escurecido, banner com a
+ * imagem própria do jogo quando existe (banner_url; fallback: cor pastel + SVG
+ * ampliado), 3 MetricChips e o botãozão Jogar. Título, tutorial e métricas vêm
+ * do contrato da API — zero mock.
  */
 export function GamePreviewModal({ game, onClose, onPlay, origin }: GamePreviewModalProps) {
   const navigate = useNavigate()
@@ -59,6 +60,7 @@ export function GamePreviewModal({ game, onClose, onPlay, origin }: GamePreviewM
   const closeRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
   const [svgFailed, setSvgFailed] = useState(false)
+  const [bannerFailed, setBannerFailed] = useState(false)
   const [activeGameId, setActiveGameId] = useState<number | null>(game?.id ?? null)
 
   // Reset do estado de erro da arte quando o jogo muda: ajustar estado durante
@@ -69,9 +71,11 @@ export function GamePreviewModal({ game, onClose, onPlay, origin }: GamePreviewM
   if (activeGameId !== (game?.id ?? null)) {
     setActiveGameId(game?.id ?? null)
     setSvgFailed(false)
+    setBannerFailed(false)
   }
 
   const svgUrl = game ? resolveAssetUrl(game.svg_url) : undefined
+  const bannerUrl = game ? resolveAssetUrl(game.banner_url) : undefined
   // Banner na cor pastel do jogo (cores[0] do contrato; fallback kid-thumb-blue).
   const artColor = game?.cores[0] ?? '#79b9e5'
 
@@ -179,7 +183,8 @@ export function GamePreviewModal({ game, onClose, onPlay, origin }: GamePreviewM
                 <X weight="bold" className="size-[18px]" />
               </button>
 
-              {/* Banner: ~1/3 da altura, cor pastel do jogo + arte (SVG) + textura. */}
+              {/* Banner: ~1/3 da altura, imagem própria (banner_url, object-cover)
+                  ou cor pastel do jogo + arte (SVG) + textura. */}
               <div
                 className="relative mx-4 mt-4 h-[clamp(8.75rem,30vh,18rem)] shrink-0 overflow-hidden rounded-3xl ring-1 ring-black/5 md:mx-5 md:mt-5"
                 style={{ backgroundColor: artColor }}
@@ -193,7 +198,15 @@ export function GamePreviewModal({ game, onClose, onPlay, origin }: GamePreviewM
                     backgroundSize: '20px 20px',
                   }}
                 />
-                {svgUrl && !svgFailed ? (
+                {bannerUrl && !bannerFailed ? (
+                  <img
+                    src={bannerUrl}
+                    alt=""
+                    draggable={false}
+                    onError={() => setBannerFailed(true)}
+                    className="relative h-full w-full select-none object-cover"
+                  />
+                ) : svgUrl && !svgFailed ? (
                   <img
                     src={svgUrl}
                     alt=""

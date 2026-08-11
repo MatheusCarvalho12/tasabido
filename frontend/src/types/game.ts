@@ -25,6 +25,10 @@ export interface Game {
   status: 'draft' | 'published'
   /** URL relativa (ex.: /api/games/1/svg) ou absoluta; null quando sem arte. */
   svg_url: string | null
+  /** URL relativa (ex.: /api/games/1/thumb) ou absoluta; null quando sem imagem. */
+  thumb_url: string | null
+  /** URL relativa (ex.: /api/games/1/banner) ou absoluta; null quando sem imagem. */
+  banner_url: string | null
   /** Paleta de cores do jogo (cores[0] vira o fundo da thumbnail). */
   cores: string[]
   stats: GameStats

@@ -17,6 +17,8 @@ const fakeGame: Game = {
   visibilidade: 'public',
   status: 'published',
   svg_url: '/api/games/7/svg',
+  thumb_url: null,
+  banner_url: null,
   cores: ['#08ADAE', '#F75A3D'],
   stats: { partidas: 2100, tempo_medio_min: 12, score_medio: 87 },
 }
@@ -128,5 +130,48 @@ describe('GamePreviewModal', () => {
     expect(fallback).toHaveTextContent('Desenhe o macaco')
     // cores[0] vira o fundo do banner (cor pastel do jogo).
     expect(fallback.parentElement?.style.backgroundColor).toBe('rgb(8, 173, 174)')
+  })
+
+  it('com banner_url renderiza a imagem do banner no topo (prioridade sobre o SVG)', async () => {
+    await renderModal({ game: { ...fakeGame, banner_url: '/api/games/7/banner' } })
+
+    expect(document.querySelector('img[src$="/api/games/7/banner"]')).not.toBeNull()
+    expect(document.querySelector('img[src$="/api/games/7/svg"]')).toBeNull()
+    expect(screen.queryByTestId('game-preview-fallback-art')).not.toBeInTheDocument()
+  })
+
+  it('sem banner_url mantém o fallback atual (SVG ampliado sobre a cor pastel)', async () => {
+    await renderModal()
+
+    expect(document.querySelector('img[src$="/api/games/7/svg"]')).not.toBeNull()
+    expect(document.querySelector('img[src$="/banner"]')).toBeNull()
+  })
+
+  it('banner quebrado (onError) esconde o <img> e mostra o fallback (SVG)', async () => {
+    await renderModal({ game: { ...fakeGame, banner_url: '/api/games/7/banner' } })
+
+    const banner = document.querySelector<HTMLImageElement>('img[src$="/api/games/7/banner"]')
+    expect(banner).not.toBeNull()
+    if (banner) {
+      fireEvent.error(banner)
+    }
+
+    expect(document.querySelector('img[src$="/banner"]')).toBeNull()
+    expect(document.querySelector('img[src$="/api/games/7/svg"]')).not.toBeNull()
+  })
+
+  it('banner quebrado sem SVG cai na composição com nome + cor', async () => {
+    await renderModal({
+      game: { ...fakeGame, banner_url: '/api/games/7/banner', svg_url: null },
+    })
+
+    const banner = document.querySelector<HTMLImageElement>('img[src$="/api/games/7/banner"]')
+    if (banner) {
+      fireEvent.error(banner)
+    }
+
+    const fallback = screen.getByTestId('game-preview-fallback-art')
+    expect(fallback).toBeInTheDocument()
+    expect(fallback).toHaveTextContent('Desenhe o macaco')
   })
 })

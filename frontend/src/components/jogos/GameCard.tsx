@@ -1,4 +1,5 @@
 import { ListChecks, Star } from '@phosphor-icons/react'
+import { useState } from 'react'
 
 import { resolveAssetUrl } from '@/lib/api'
 import { formatCompactCount, formatPlaysLabel, formatScoreStars } from '@/lib/games'
@@ -21,15 +22,27 @@ export interface GameCardProps {
 }
 
 /**
- * Card de jogo do modo criança: thumbnail quadrada com a arte SVG do jogo
- * sobre a cor principal da paleta (cores[0]) e painel branco com título +
- * stats reais do contrato. Sem SVG → nome da atividade em grande.
+ * Card de jogo do modo criança: thumbnail quadrada com a arte do jogo sobre a
+ * cor principal da paleta (cores[0]) e painel branco com título + stats reais
+ * do contrato. Quando o jogo tem thumb_url própria, ela cobre a área toda
+ * (object-cover); sem ela, o SVG do jogo (ou o nome em grande) sobre a cor
+ * pastel. Imagem quebrada cai no mesmo fallback (onError).
  */
 export function GameCard({ game, badge, onSelect }: GameCardProps) {
   const thumbnailColor = game.cores[0] ?? FALLBACK_COLORS[game.id % FALLBACK_COLORS.length]
+  const thumbUrl = resolveAssetUrl(game.thumb_url)
   const svgUrl = resolveAssetUrl(game.svg_url)
   const scoreLabel = formatScoreStars(game.stats.score_medio)
   const playsLabel = formatPlaysLabel(game.stats.partidas)
+
+  // Reset do estado de erro da thumbnail quando o jogo muda: ajustar estado
+  // durante o render (padrão React) em vez de setState dentro de effect.
+  const [thumbFailed, setThumbFailed] = useState(false)
+  const [activeGameId, setActiveGameId] = useState<number | null>(game.id)
+  if (activeGameId !== game.id) {
+    setActiveGameId(game.id)
+    setThumbFailed(false)
+  }
 
   return (
     <button
@@ -45,7 +58,16 @@ export function GameCard({ game, badge, onSelect }: GameCardProps) {
         className="relative aspect-square overflow-hidden"
         style={{ backgroundColor: thumbnailColor }}
       >
-        {svgUrl ? (
+        {thumbUrl && !thumbFailed ? (
+          <img
+            src={thumbUrl}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            onError={() => setThumbFailed(true)}
+            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
+          />
+        ) : svgUrl ? (
           <img
             src={svgUrl}
             alt=""
