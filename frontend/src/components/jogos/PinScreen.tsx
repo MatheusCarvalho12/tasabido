@@ -144,38 +144,42 @@ export function PinScreen() {
   }, [])
 
   const submitPin = useCallback(
-    async (pin: string) => {
+    (pin: string) => {
       if (submittingRef.current) {
         return
       }
       submittingRef.current = true
       setLoading(true)
-      try {
-        const { valido } = await validateParentPinApi(pin)
-        if (valido) {
-          unlock()
-          setCelebrating(true)
-          navigateTimerRef.current = setTimeout(() => {
-            navigateTimerRef.current = null
-            void navigate({ to: '/pais' })
-          }, 900)
-        } else {
-          setErrorMsg(PIN_ERROR_WRONG)
+      // .then/.catch em vez de try/catch async: o React Compiler não suporta
+      // try/catch com await dentro de componente.
+      void validateParentPinApi(pin)
+        .then(({ valido }) => {
+          if (valido) {
+            unlock()
+            setCelebrating(true)
+            navigateTimerRef.current = setTimeout(() => {
+              navigateTimerRef.current = null
+              void navigate({ to: '/pais' })
+            }, 900)
+          } else {
+            setErrorMsg(PIN_ERROR_WRONG)
+            setErrorKey((k) => k + 1)
+            setDigits('')
+          }
+        })
+        .catch((err: unknown) => {
+          if (err instanceof ApiRequestError && err.status === 401) {
+            setErrorMsg(PIN_ERROR_WRONG)
+          } else {
+            setErrorMsg(PIN_ERROR_OFFLINE)
+          }
           setErrorKey((k) => k + 1)
           setDigits('')
-        }
-      } catch (err) {
-        if (err instanceof ApiRequestError && err.status === 401) {
-          setErrorMsg(PIN_ERROR_WRONG)
-        } else {
-          setErrorMsg(PIN_ERROR_OFFLINE)
-        }
-        setErrorKey((k) => k + 1)
-        setDigits('')
-      } finally {
-        submittingRef.current = false
-        setLoading(false)
-      }
+        })
+        .finally(() => {
+          submittingRef.current = false
+          setLoading(false)
+        })
     },
     [navigate, unlock],
   )
@@ -201,13 +205,13 @@ export function PinScreen() {
   }
 
   return (
-    <main className="relative flex min-h-dvh flex-col items-center overflow-hidden bg-cream px-6 pt-8 pb-10 text-navy sm:px-10">
+    <main className="relative flex min-h-dvh flex-col items-center overflow-hidden bg-cream px-6 pt-8 pb-10 text-navy sm:px-10 lg:justify-center lg:overflow-y-auto lg:px-0 lg:py-10">
       {/* Logo no topo (esquerda, como na referência) */}
       <img
         src={logo}
         alt="Tá Sabido"
         draggable={false}
-        className="h-14 w-auto self-start drop-shadow-sm sm:h-16"
+        className="h-14 w-auto self-start drop-shadow-sm sm:h-16 lg:absolute lg:top-8 lg:left-8"
       />
 
       {/* Sabidinho curioso no canto direito */}
@@ -215,10 +219,11 @@ export function PinScreen() {
         src={mascote}
         alt="Sabidinho espiando a digitação do PIN"
         draggable={false}
-        className="pointer-events-none absolute top-2 right-2 w-20 object-contain drop-shadow-md sm:w-28 lg:right-10"
+        className="pointer-events-none absolute top-2 right-2 w-20 object-contain drop-shadow-md sm:w-28 lg:top-6 lg:right-10 lg:w-32"
       />
 
-      <div className="flex w-full max-w-sm flex-col items-center gap-5 pt-2 sm:gap-6">
+      {/* Card central no desktop (modal); mobile full-bleed como a referência */}
+      <div className="relative flex w-full max-w-sm flex-col items-center gap-4 pt-2 sm:gap-5 lg:max-w-md lg:gap-5 lg:rounded-[2.5rem] lg:bg-panel lg:px-12 lg:py-8 lg:shadow-clay">
         <BigLockGraphic />
 
         <div className="text-center">
@@ -251,8 +256,8 @@ export function PinScreen() {
 
       {/* Blobs decorativos nos cantos inferiores (estilo clay da referência) */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="clay-blob absolute -bottom-16 -left-14 size-52 rounded-[42%_58%_60%_40%/55%_45%_60%_40%] bg-gradient-to-br from-turquoise-light via-turquoise to-turquoise-dark opacity-85 sm:size-64" />
-        <div className="clay-blob absolute -right-14 -bottom-14 size-44 -rotate-6 rounded-[55%_45%_40%_60%/45%_55%_50%_50%] bg-gradient-to-br from-[#f8784f] via-coral to-coral-dark opacity-85 sm:size-56" />
+        <div className="clay-blob absolute -bottom-24 -left-20 size-44 rounded-[42%_58%_60%_40%/55%_45%_60%_40%] bg-gradient-to-br from-turquoise-light via-turquoise to-turquoise-dark opacity-85 sm:size-64" />
+        <div className="clay-blob absolute -right-20 -bottom-20 size-36 -rotate-6 rounded-[55%_45%_40%_60%/45%_55%_50%_50%] bg-gradient-to-br from-[#f8784f] via-coral to-coral-dark opacity-85 sm:size-56" />
       </div>
 
       <AnimatePresence>{celebrating && <SuccessCelebration />}</AnimatePresence>
