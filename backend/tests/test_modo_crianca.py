@@ -166,12 +166,16 @@ def test_public_games_list_contract(client: TestClient) -> None:
         "visibilidade",
         "status",
         "svg_url",
+        "thumb_url",
+        "banner_url",
         "cores",
         "stats",
     }
     assert item["visibilidade"] == "public"
     assert item["status"] == "published"
     assert item["svg_url"] is None  # sem upload de SVG
+    assert item["thumb_url"] is None  # sem upload de imagem
+    assert item["banner_url"] is None
     assert item["cores"] == ["#08ADAE", "#F75A3D"]
     assert item["stats"] == {"partidas": 0, "tempo_medio_min": 0, "score_medio": 0}
 

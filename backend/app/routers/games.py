@@ -1,4 +1,4 @@
-"""CRUD de jogos do modo criança (papel professional) + upload/serviço de SVG."""
+"""CRUD de jogos do modo criança (papel professional) + upload/serviço de SVG e imagens (thumb/banner)."""  # noqa: E501
 
 import re
 import unicodedata
@@ -30,10 +30,21 @@ router = APIRouter(prefix="/api/games", tags=["games"])
 
 SVG_MAX_BYTES = 500 * 1024  # ~500 KB, conforme contrato
 SVG_STORAGE_RELATIVE = "svgs"  # storage/svgs/<game_id>.svg
+IMAGE_MAX_BYTES = 1024 * 1024  # ~1 MB por imagem, conforme contrato
+IMAGE_STORAGE_RELATIVE = "images"  # storage/images/<game_id>-thumb.<ext>
+_IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".svg"})
+_IMAGE_MEDIA_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+}
 _SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
 
 _SVG_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, detail="SVG não encontrado")
 _GAME_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, detail="Jogo não encontrado")
+_IMAGE_NOT_FOUND = HTTPException(status.HTTP_404_NOT_FOUND, detail="Imagem não encontrada")
 
 
 def _slugify(titulo: str) -> str:
@@ -72,10 +83,14 @@ def _svg_dir() -> Path:
     return settings.storage_dir / SVG_STORAGE_RELATIVE
 
 
-def _resolve_svg_path(svg_path: str) -> Path | None:
+def _images_dir() -> Path:
+    return settings.storage_dir / IMAGE_STORAGE_RELATIVE
+
+
+def _resolve_storage_path(stored_path: str) -> Path | None:
     """Caminho do arquivo resolvido e contido no storage (defesa contra path traversal)."""
     storage_root = settings.storage_dir.resolve()
-    candidate = (storage_root / svg_path).resolve()
+    candidate = (storage_root / stored_path).resolve()
     if not candidate.is_relative_to(storage_root):
         return None
     return candidate
@@ -193,12 +208,17 @@ def update_game(
 @router.delete("/{game_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_game(game_id: int, current_user: CurrentUser, db: DbSession) -> None:
     game = _get_owned_game(db, game_id, current_user)
+    # Arquivos órfãos do jogo deletado também saem do disco (runs/assignments
+    # caem via CASCADE): SVG + thumb/banner quando existirem.
+    stored_paths = [game.svg_path, game.thumb_path, game.banner_path]
     db.delete(game)
     db.commit()
-    # SVG órfão do jogo deletado também sai do disco (runs/assignments caem via CASCADE).
-    svg_file = _svg_dir() / f"{game_id}.svg"
-    if svg_file.is_file():
-        svg_file.unlink()
+    for stored_path in stored_paths:
+        if stored_path is None:
+            continue
+        file_path = _resolve_storage_path(stored_path)
+        if file_path is not None and file_path.is_file():
+            file_path.unlink()
 
 
 @router.post("/{game_id}/publish", response_model=GameOut)
@@ -260,7 +280,100 @@ def get_svg(game_id: int, db: DbSession, current_user: OptionalUser) -> FileResp
     is_owner = current_user is not None and game.criado_por == current_user.id
     if game.status != "published" and not is_owner:
         raise _SVG_NOT_FOUND
-    path = _resolve_svg_path(game.svg_path)
+    path = _resolve_storage_path(game.svg_path)
     if path is None or not path.is_file():
         raise _SVG_NOT_FOUND
     return FileResponse(path, media_type="image/svg+xml")
+
+
+def _read_image(upload: UploadFile, kind: str) -> tuple[str, bytes]:
+    """Valida e lê a imagem enviada: extensão permitida, conteúdo não vazio, ≤ 1 MB."""
+    ext = Path(upload.filename or "").suffix.lower()
+    if ext not in _IMAGE_EXTENSIONS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"A imagem {kind} precisa ser PNG, JPG, WebP ou SVG",
+        )
+    content = upload.file.read()
+    if not content:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"A imagem {kind} está vazia"
+        )
+    if len(content) > IMAGE_MAX_BYTES:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"A imagem {kind} precisa ter no máximo 1 MB",
+        )
+    return ext, content
+
+
+@router.post("/{game_id}/images", response_model=GameOut)
+def upload_images(
+    game_id: int,
+    current_user: CurrentUser,
+    db: DbSession,
+    thumb: Annotated[UploadFile | None, File()] = None,
+    banner: Annotated[UploadFile | None, File()] = None,
+) -> GameOut:
+    """Sobe a thumbnail e/ou o banner do jogo (multipart, campos opcionais).
+
+    Salva em storage/images/<game_id>-thumb.<ext> e -banner.<ext> e devolve o
+    jogo atualizado no contrato (thumb_url/banner_url)."""
+    game = _get_owned_game(db, game_id, current_user)
+    if thumb is None and banner is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Envie pelo menos uma imagem: thumb e/ou banner",
+        )
+    # Valida os DOIS antes de gravar qualquer um: erro num deles não deixa o
+    # outro gravado no disco sem path no banco (arquivo órfão).
+    pending: dict[str, tuple[str, bytes]] = {}
+    if thumb is not None:
+        pending["thumb"] = _read_image(thumb, "thumb")
+    if banner is not None:
+        pending["banner"] = _read_image(banner, "banner")
+    for kind, (ext, content) in pending.items():
+        relpath = f"{IMAGE_STORAGE_RELATIVE}/{game_id}-{kind}{ext}"
+        target = _images_dir() / f"{game_id}-{kind}{ext}"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+        if kind == "thumb":
+            game.thumb_path = relpath
+        else:
+            game.banner_path = relpath
+    game.updated_at = func.now()
+    db.commit()
+    db.refresh(game)
+    return game_out(game, _stats(db, game.id))
+
+
+def _serve_game_image(
+    game_id: int, kind: str, db: DbSession, current_user: OptionalUser
+) -> FileResponse:
+    """Serve thumb/banner do jogo (404 sem arquivo). Público para jogos
+    PUBLICADOS (o <img> do card não manda auth); rascunho só o dono — mesma
+    regra do SVG."""
+    game = db.get(Game, game_id)
+    if game is None:
+        raise _IMAGE_NOT_FOUND
+    stored_path = getattr(game, f"{kind}_path")
+    if stored_path is None:
+        raise _IMAGE_NOT_FOUND
+    is_owner = current_user is not None and game.criado_por == current_user.id
+    if game.status != "published" and not is_owner:
+        raise _IMAGE_NOT_FOUND
+    path = _resolve_storage_path(stored_path)
+    if path is None or not path.is_file():
+        raise _IMAGE_NOT_FOUND
+    media_type = _IMAGE_MEDIA_TYPES.get(Path(stored_path).suffix.lower())
+    return FileResponse(path, media_type=media_type)
+
+
+@router.get("/{game_id}/thumb")
+def get_thumb(game_id: int, db: DbSession, current_user: OptionalUser) -> FileResponse:
+    return _serve_game_image(game_id, "thumb", db, current_user)
+
+
+@router.get("/{game_id}/banner")
+def get_banner(game_id: int, db: DbSession, current_user: OptionalUser) -> FileResponse:
+    return _serve_game_image(game_id, "banner", db, current_user)

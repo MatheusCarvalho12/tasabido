@@ -73,6 +73,8 @@ class Game(Base):
     visibilidade: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20))
     svg_path: Mapped[str | None] = mapped_column(String(255))
+    thumb_path: Mapped[str | None] = mapped_column(String(255))
+    banner_path: Mapped[str | None] = mapped_column(String(255))
     cores: Mapped[list[str]] = mapped_column(
         JSONB, server_default=text("'[]'::jsonb"), nullable=False
     )

@@ -583,6 +583,8 @@ class GameOut(BaseModel):
     visibilidade: str
     status: str
     svg_url: str | None
+    thumb_url: str | None
+    banner_url: str | None
     cores: list[str]
     stats: GameStats
 

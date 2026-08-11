@@ -41,8 +41,9 @@ def stats_for_games(db: Session, game_ids: list[int]) -> dict[int, GameStats]:
 
 
 def game_out(game: Game, stats: GameStats) -> GameOut:
-    """Serializa o jogo no contrato do front (types/game.ts): svg_url derivada
-    do caminho salvo (o endpoint de servir o SVG é do CRUD — T2), stats reais.
+    """Serializa o jogo no contrato do front (types/game.ts): svg_url/thumb_url/
+    banner_url derivados dos caminhos salvos (endpoints de servir são do CRUD —
+    T2), stats reais. URLs null quando não há arquivo (fallback do front cobre).
     """
     return GameOut(
         id=game.id,
@@ -54,6 +55,8 @@ def game_out(game: Game, stats: GameStats) -> GameOut:
         visibilidade=game.visibilidade,
         status=game.status,
         svg_url=f"/api/games/{game.id}/svg" if game.svg_path else None,
+        thumb_url=f"/api/games/{game.id}/thumb" if game.thumb_path else None,
+        banner_url=f"/api/games/{game.id}/banner" if game.banner_path else None,
         cores=list(game.cores or []),
         stats=stats,
     )

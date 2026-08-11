@@ -7,6 +7,8 @@ SVG_CONTENT = (
     b'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
     b'<rect width="100" height="100" fill="#08ADAE"/></svg>'
 )
+# PNG mínimo (header real + payload); o backend valida extensão/tamanho, não bytes.
+PNG_CONTENT = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
 
 def _register(
@@ -100,6 +102,8 @@ def test_create_game_ok(client: TestClient) -> None:
     assert game["visibilidade"] == "public"
     assert game["cores"] == ["#08ADAE", "#F75A3D"]
     assert game["svg_url"] is None
+    assert game["thumb_url"] is None
+    assert game["banner_url"] is None
     assert game["stats"] == {"partidas": 0, "tempo_medio_min": 0, "score_medio": 0}
 
 
@@ -472,3 +476,169 @@ def test_create_game_validation_messages(client: TestClient) -> None:
         "O título do jogo precisa ter pelo menos 2 caracteres",
         "A descrição é obrigatória",
     )
+
+
+# ── Imagens (thumb/banner) ────────────────────────────────────────────────────
+
+
+def test_upload_images_ok_and_serve(client: TestClient) -> None:
+    _register(client, "prof@example.com", "professional", "52998224725")
+    headers = _auth("prof@example.com")
+    game = _create_game(client, headers)
+
+    response = client.post(
+        f"/api/games/{game['id']}/images",
+        files={
+            "thumb": ("card.png", PNG_CONTENT, "image/png"),
+            "banner": ("topo.webp", b"WEBP" * 16, "image/webp"),
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["thumb_url"] == f"/api/games/{game['id']}/thumb"
+    assert updated["banner_url"] == f"/api/games/{game['id']}/banner"
+    assert updated["svg_url"] is None
+    assert updated["cores"] == ["#08ADAE", "#F75A3D"]
+
+    # Contrato refletido na listagem (scope=mine).
+    listed = client.get("/api/games?scope=mine", headers=headers).json()
+    assert listed["items"][0]["thumb_url"] == f"/api/games/{game['id']}/thumb"
+    assert listed["items"][0]["banner_url"] == f"/api/games/{game['id']}/banner"
+
+    # Arquivos servidos de verdade, com content-type por extensão.
+    thumb_response = client.get(f"/api/games/{game['id']}/thumb", headers=headers)
+    assert thumb_response.status_code == 200
+    assert thumb_response.headers["content-type"] == "image/png"
+    assert thumb_response.content == PNG_CONTENT
+    banner_response = client.get(f"/api/games/{game['id']}/banner", headers=headers)
+    assert banner_response.status_code == 200
+    assert banner_response.headers["content-type"] == "image/webp"
+
+
+def test_upload_images_only_thumb_leaves_banner_null(client: TestClient) -> None:
+    _register(client, "prof@example.com", "professional", "52998224725")
+    headers = _auth("prof@example.com")
+    game = _create_game(client, headers)
+
+    response = client.post(
+        f"/api/games/{game['id']}/images",
+        files={"thumb": ("card.png", PNG_CONTENT, "image/png")},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["thumb_url"] == f"/api/games/{game['id']}/thumb"
+    assert response.json()["banner_url"] is None
+
+
+def test_upload_images_forbidden_for_other_professional(client: TestClient) -> None:
+    _register(client, "prof-a@example.com", "professional", "52998224725")
+    _register(client, "prof-b@example.com", "professional", "11144477735")
+    game = _create_game(client, _auth("prof-a@example.com"))
+
+    response = client.post(
+        f"/api/games/{game['id']}/images",
+        files={"thumb": ("card.png", PNG_CONTENT, "image/png")},
+        headers=_auth("prof-b@example.com"),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Você não é o dono deste jogo"
+
+
+def test_upload_images_requires_at_least_one_field(client: TestClient) -> None:
+    _register(client, "prof@example.com", "professional", "52998224725")
+    headers = _auth("prof@example.com")
+    game = _create_game(client, headers)
+
+    response = client.post(f"/api/games/{game['id']}/images", files={}, headers=headers)
+
+    assert response.status_code == 422
+    assert "pelo menos uma imagem" in response.json()["detail"]
+
+
+def test_upload_images_rejects_bad_extension_and_too_large(client: TestClient) -> None:
+    _register(client, "prof@example.com", "professional", "52998224725")
+    headers = _auth("prof@example.com")
+    game = _create_game(client, headers)
+
+    bad = client.post(
+        f"/api/games/{game['id']}/images",
+        files={"thumb": ("card.gif", b"GIF89a", "image/gif")},
+        headers=headers,
+    )
+    assert bad.status_code == 422
+    assert bad.json()["detail"] == "A imagem thumb precisa ser PNG, JPG, WebP ou SVG"
+
+    huge = client.post(
+        f"/api/games/{game['id']}/images",
+        files={"banner": ("topo.png", b"x" * (1024 * 1024 + 1), "image/png")},
+        headers=headers,
+    )
+    assert huge.status_code == 413
+    assert huge.json()["detail"] == "A imagem banner precisa ter no máximo 1 MB"
+
+    # Falha de validação não deixa nada gravado: contratos continuam null.
+    listed = client.get("/api/games?scope=mine", headers=headers).json()
+    assert listed["items"][0]["thumb_url"] is None
+    assert listed["items"][0]["banner_url"] is None
+
+
+def test_get_image_not_found_404(client: TestClient) -> None:
+    _register(client, "prof@example.com", "professional", "52998224725")
+    headers = _auth("prof@example.com")
+    game = _create_game(client, headers)
+
+    thumb_response = client.get(f"/api/games/{game['id']}/thumb", headers=headers)
+    banner_response = client.get(f"/api/games/{game['id']}/banner", headers=headers)
+
+    assert thumb_response.status_code == 404
+    assert banner_response.status_code == 404
+    assert thumb_response.json()["detail"] == "Imagem não encontrada"
+    # Jogo inexistente também é 404 (mesma mensagem amigável).
+    assert client.get("/api/games/99999/thumb").status_code == 404
+
+
+def test_get_image_public_when_published(client: TestClient) -> None:
+    """O <img> do card não manda header de auth: imagem de jogo PUBLICADO
+    precisa ser servida publicamente."""
+    _register(client, "prof@example.com", "professional", "52998224725")
+    headers = _auth("prof@example.com")
+    game = _create_game(client, headers)
+    assert (
+        client.post(
+            f"/api/games/{game['id']}/images",
+            files={"thumb": ("card.png", PNG_CONTENT, "image/png")},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+    assert client.post(f"/api/games/{game['id']}/publish", headers=headers).status_code == 200
+
+    response = client.get(f"/api/games/{game['id']}/thumb")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content == PNG_CONTENT
+
+
+def test_get_image_draft_only_for_owner(client: TestClient) -> None:
+    """Rascunho: sem token 404; o dono (profissional) ainda vê para preview."""
+    _register(client, "prof@example.com", "professional", "52998224725")
+    headers = _auth("prof@example.com")
+    game = _create_game(client, headers)
+    assert (
+        client.post(
+            f"/api/games/{game['id']}/images",
+            files={"thumb": ("card.png", PNG_CONTENT, "image/png")},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+
+    assert client.get(f"/api/games/{game['id']}/thumb").status_code == 404
+    owner = client.get(f"/api/games/{game['id']}/thumb", headers=headers)
+    assert owner.status_code == 200
+    assert owner.content == PNG_CONTENT

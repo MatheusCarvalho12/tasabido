@@ -14,8 +14,9 @@ backend/storage/svgs/seed/<slug>.svg — nada de mock.
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0002"
@@ -39,6 +40,8 @@ def upgrade() -> None:
         sa.Column("visibilidade", sa.String(length=20), nullable=False),
         sa.Column("status", sa.String(length=20), nullable=False),
         sa.Column("svg_path", sa.String(length=255), nullable=True),
+        sa.Column("thumb_path", sa.String(length=255), nullable=True),
+        sa.Column("banner_path", sa.String(length=255), nullable=True),
         sa.Column(
             "cores",
             postgresql.JSONB(astext_type=sa.Text()),
@@ -50,9 +53,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("slug", name="uq_games_slug"),
-        sa.CheckConstraint(
-            "visibilidade IN ('public', 'private')", name="visibilidade"
-        ),
+        sa.CheckConstraint("visibilidade IN ('public', 'private')", name="visibilidade"),
         sa.CheckConstraint("status IN ('draft', 'published')", name="status"),
         sa.ForeignKeyConstraint(["criado_por"], ["users.id"], ondelete="SET NULL"),
     )
@@ -65,9 +66,7 @@ def upgrade() -> None:
         sa.Column("professional_id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()"), nullable=False),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "game_id", "child_id", name="uq_game_assignments_game_id_child_id"
-        ),
+        sa.UniqueConstraint("game_id", "child_id", name="uq_game_assignments_game_id_child_id"),
         sa.ForeignKeyConstraint(["game_id"], ["games.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["child_id"], ["children.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["professional_id"], ["users.id"], ondelete="CASCADE"),
@@ -113,7 +112,9 @@ def upgrade() -> None:
                 "slug": "escreva-seu-nome",
                 "titulo": "Escreva seu nome",
                 "descricao": "Treine a escrita do próprio nome, um traço de cada vez.",
-                "tutorial": "Escreva seu nome passando o dedo sobre as letras pontilhadas, uma por uma.",
+                "tutorial": (
+                    "Escreva seu nome passando o dedo sobre as letras pontilhadas, uma por uma."
+                ),
                 "categoria": "escrita",
                 "visibilidade": "public",
                 "status": "published",
@@ -125,8 +126,13 @@ def upgrade() -> None:
                 "id": 2,
                 "slug": "desenhe-o-macaco",
                 "titulo": "Desenhe o macaco",
-                "descricao": "Complete o desenho do macaco e ganhe pontos preenchendo as áreas certas.",
-                "tutorial": "Complete o desenho do macaco passando o dedo sobre as linhas pontilhadas. Preencha dentro das áreas certas para ganhar pontos.",
+                "descricao": (
+                    "Complete o desenho do macaco e ganhe pontos preenchendo as áreas certas."
+                ),
+                "tutorial": (
+                    "Complete o desenho do macaco passando o dedo sobre as linhas pontilhadas. "
+                    "Preencha dentro das áreas certas para ganhar pontos."
+                ),
                 "categoria": "coordenação motora",
                 "visibilidade": "public",
                 "status": "published",
@@ -139,7 +145,10 @@ def upgrade() -> None:
                 "slug": "pinte-o-arco-iris",
                 "titulo": "Pinte o arco-íris",
                 "descricao": "Pinte o arco-íris escolhendo a cor certa para cada faixa.",
-                "tutorial": "Pinte cada faixa do arco-íris tocando nela com a cor certa, de cima para baixo.",
+                "tutorial": (
+                    "Pinte cada faixa do arco-íris tocando nela com a cor certa, "
+                    "de cima para baixo."
+                ),
                 "categoria": "coordenação motora",
                 "visibilidade": "public",
                 "status": "published",
@@ -152,7 +161,10 @@ def upgrade() -> None:
                 "slug": "complete-as-formas",
                 "titulo": "Complete as formas",
                 "descricao": "Feche as figuras passando o dedo sobre as linhas pontilhadas.",
-                "tutorial": "Complete cada forma passando o dedo sobre a linha pontilhada até fechar a figura.",
+                "tutorial": (
+                    "Complete cada forma passando o dedo sobre a linha pontilhada "
+                    "até fechar a figura."
+                ),
                 "categoria": "percepção visual",
                 "visibilidade": "public",
                 "status": "published",
@@ -165,7 +177,10 @@ def upgrade() -> None:
                 "slug": "ligue-os-pontos",
                 "titulo": "Ligue os pontos",
                 "descricao": "Descubra o desenho escondido ligando os pontos em ordem.",
-                "tutorial": "Ligue os pontos em ordem, um depois do outro, para revelar o desenho escondido.",
+                "tutorial": (
+                    "Ligue os pontos em ordem, um depois do outro, para revelar "
+                    "o desenho escondido."
+                ),
                 "categoria": "percepção visual",
                 "visibilidade": "public",
                 "status": "published",
@@ -178,7 +193,10 @@ def upgrade() -> None:
                 "slug": "trace-o-caminho",
                 "titulo": "Trace o caminho",
                 "descricao": "Leve o personagem até o fim do caminho sem sair da trilha.",
-                "tutorial": "Trace o caminho do início ao fim passando o dedo sobre a trilha pontilhada, sem sair dela.",
+                "tutorial": (
+                    "Trace o caminho do início ao fim passando o dedo sobre a trilha pontilhada, "
+                    "sem sair dela."
+                ),
                 "categoria": "coordenação motora",
                 "visibilidade": "public",
                 "status": "published",
