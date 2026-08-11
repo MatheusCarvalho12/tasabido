@@ -5,9 +5,22 @@ import type { ApiErrorBody, LoginRequest, LoginResponse, MeResponse, User } from
 import type { RegisterRequest, RegisterResponse } from '@/types/cadastro'
 import type { RegisterProfessionalRequest } from '@/types/cadastro-profissional'
 
+/** Base da API local (backend FastAPI na porta 8000). */
+export const API_BASE_URL = 'http://localhost:8000'
+
 export const apiClient = createClient({
-  baseUrl: 'http://localhost:8000',
+  baseUrl: API_BASE_URL,
 })
+
+/**
+ * Resolve caminhos relativos da API (ex.: svg_url "/api/games/1/svg")
+ * para URL absoluta; URLs completas passam direto.
+ */
+export function resolveAssetUrl(path: string | null | undefined): string | undefined {
+  if (!path) return undefined
+  if (/^https?:\/\//i.test(path)) return path
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`
+}
 
 export class ApiRequestError extends Error {
   readonly status: number

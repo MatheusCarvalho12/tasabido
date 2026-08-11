@@ -24,6 +24,42 @@
   --color-cream: var(--clay-cream);
   --color-panel: var(--clay-panel);
 
+  /* Modo criança — tokens do design system oficial (docs/design-system/modo-crianca.md) */
+  --color-kid-bg: var(--kid-bg);
+  --color-kid-card: var(--kid-card);
+  --color-kid-modal: var(--kid-modal);
+  --color-kid-key: var(--kid-key);
+  --color-kid-heading: var(--kid-heading);
+  --color-kid-muted: var(--kid-muted);
+  --color-kid-numeral: var(--kid-numeral);
+  --color-kid-thumb-turquoise: var(--kid-thumb-turquoise);
+  --color-kid-thumb-blue: var(--kid-thumb-blue);
+  --color-kid-thumb-coral: var(--kid-thumb-coral);
+  --color-kid-thumb-yellow: var(--kid-thumb-yellow);
+  --color-kid-thumb-purple: var(--kid-thumb-purple);
+  --color-kid-turquoise: var(--kid-turquoise);
+  --color-kid-turquoise-bright: var(--kid-turquoise-bright);
+  --color-kid-task: var(--kid-task);
+  --color-kid-star: var(--kid-star);
+  --color-kid-purple-strong: var(--kid-purple-strong);
+  --color-kid-backspace: var(--kid-backspace);
+  --color-kid-blue-ring: var(--kid-blue-ring);
+
+  --radius-kid-card: var(--radius-kid-card);
+  --radius-kid-thumb: var(--radius-kid-thumb);
+  --radius-kid-pill: var(--radius-kid-pill);
+  --radius-kid-chip: var(--radius-kid-chip);
+  --radius-kid-badge-square: var(--radius-kid-badge-square);
+
+  --shadow-kid-card: var(--shadow-kid-card);
+  --shadow-kid-card-hover: var(--shadow-kid-card-hover);
+  --shadow-kid-arrow: var(--shadow-kid-arrow);
+  --shadow-kid-modal: var(--shadow-kid-modal);
+  --shadow-kid-key: var(--shadow-kid-key);
+
+  --ease-kid-pop: var(--ease-kid-pop);
+  --ease-kid-slide: var(--ease-kid-slide);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -120,6 +156,40 @@
   --clay-navy: #002767;
   --clay-cream: #f3f1ef;
   --clay-panel: #f4efec;
+
+  /* Modo criança — design system oficial (docs/design-system/modo-crianca.md) */
+  --kid-bg: #f8f6f1;
+  --kid-card: #fffdf9;
+  --kid-modal: #fffdf8;
+  --kid-key: #f7f2e9;
+  --kid-heading: #104477;
+  --kid-muted: #6b6b6b;
+  --kid-numeral: #075097;
+  --kid-thumb-turquoise: #48c3c7;
+  --kid-thumb-blue: #79b9e5;
+  --kid-thumb-coral: #f36a4d;
+  --kid-thumb-yellow: #ffca2b;
+  --kid-thumb-purple: #9c80d0;
+  --kid-turquoise: #12a8af;
+  --kid-turquoise-bright: #20bfc4;
+  --kid-task: #f45a2a;
+  --kid-star: #ffb800;
+  --kid-purple-strong: #7041b8;
+  --kid-backspace: #145a9e;
+  --kid-blue-ring: #0878d9;
+  --radius-kid-card: 24px;
+  --radius-kid-thumb: 24px;
+  --radius-kid-pill: 999px;
+  --radius-kid-chip: 18px;
+  --radius-kid-badge-square: 10px;
+  --shadow-kid-card: 0 10px 24px -8px rgb(33 30 26 / 0.18);
+  --shadow-kid-card-hover: 0 18px 36px -12px rgb(33 30 26 / 0.26);
+  --shadow-kid-arrow: 0 6px 16px -6px rgb(33 30 26 / 0.22);
+  --shadow-kid-modal: 0 32px 72px -24px rgb(33 30 26 / 0.4);
+  --shadow-kid-key:
+    inset 0 3px 6px rgb(255 255 255 / 0.6), 0 6px 14px -6px rgb(33 30 26 / 0.25);
+  --ease-kid-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-kid-slide: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .dark {
