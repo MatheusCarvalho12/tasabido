@@ -30,6 +30,7 @@
     "clsx": "^2.1.1",
     "cpf-cnpj-validator": "2.1.2",
     "libphonenumber-js": "1.13.10",
+    "motion": "^13.0.0",
     "react": "19.2.8",
     "react-day-picker": "10.0.1",
     "react-dom": "19.2.8",

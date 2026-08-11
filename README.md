@@ -1,5 +1,7 @@
 # Tá Sabido
 
+**Versão:** v0.2.0 — modo criança: jogos, preview e PIN dos pais (jogos de escrita/coordenação, carrosséis com stats reais, área dos pais protegida por PIN de 6 dígitos).
+
 <table>
 <tbody>
 <tr>

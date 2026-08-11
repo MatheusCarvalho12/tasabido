@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Letra T pontilhada: traço horizontal + traço vertical -->
+  <path d="M 55 45 L 145 45" fill="none" stroke="#08ADAE" stroke-width="12" stroke-linecap="round" stroke-dasharray="10 10"/>
+  <path d="M 100 45 L 100 165" fill="none" stroke="#08ADAE" stroke-width="12" stroke-linecap="round" stroke-dasharray="10 10"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Caminho sinuoso pontilhado entre o ponto de início e o de chegada -->
+  <path d="M 30 50 C 70 30, 80 170, 120 150 S 170 60, 175 110" fill="none" stroke="#F75A3D" stroke-width="10" stroke-linecap="round" stroke-dasharray="10 10"/>
+  <circle cx="30" cy="50" r="10" fill="#08ADAE"/>
+  <circle cx="175" cy="110" r="10" fill="#F8AD16"/>
+</svg>

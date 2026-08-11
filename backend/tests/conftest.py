@@ -1,11 +1,25 @@
+import atexit
 import os
+import shutil
+import tempfile
 from collections.abc import Generator
 from pathlib import Path
 
 # Sobrescreve as settings ANTES de qualquer import do app: aponta para o banco
 # de testes dedicado (criado nesta fixture) e um JWT_SECRET determinístico.
-os.environ["DATABASE_URL"] = "postgresql+psycopg://tasabido:tasabido@localhost:5432/tasabido_test"
+# Banco de teste dedicado; workers em paralelo podem isolar o próprio banco via
+# TASABIDO_TEST_DB (o TRUNCATE de uma sessão derruba a outra no mesmo banco).
+_TEST_DB_NAME = os.environ.get("TASABIDO_TEST_DB", "tasabido_test")
+os.environ.setdefault(
+    "DATABASE_URL",
+    f"postgresql+psycopg://tasabido:tasabido@localhost:5432/{_TEST_DB_NAME}",
+)
 os.environ["JWT_SECRET"] = "test-secret-with-at-least-32-bytes"
+# Uploads de SVG dos testes vão para um diretório temporário (apagado no fim da
+# sessão) — o storage real em backend/storage nunca é tocado pelos testes.
+_TEST_STORAGE_DIR = tempfile.mkdtemp(prefix="tasabido-storage-test-")
+atexit.register(shutil.rmtree, _TEST_STORAGE_DIR, ignore_errors=True)
+os.environ["STORAGE_DIR"] = _TEST_STORAGE_DIR
 
 import psycopg  # noqa: E402
 import pytest  # noqa: E402
@@ -25,9 +39,9 @@ def _ensure_test_database() -> None:
         ) as conn,
         conn.cursor() as cur,
     ):
-        cur.execute("SELECT 1 FROM pg_database WHERE datname = 'tasabido_test'")
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (_TEST_DB_NAME,))
         if cur.fetchone() is None:
-            cur.execute("CREATE DATABASE tasabido_test")
+            cur.execute(f'CREATE DATABASE "{_TEST_DB_NAME}"')
 
 
 def _run_migrations() -> None:

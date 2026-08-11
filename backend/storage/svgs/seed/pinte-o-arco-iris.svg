@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 140" width="200" height="140">
+  <!-- Arco-íris: 4 faixas concêntricas, cada uma com a sua cor -->
+  <path d="M 30 120 A 70 70 0 0 1 170 120" fill="none" stroke="#F75A3D" stroke-width="16" stroke-linecap="round"/>
+  <path d="M 45 120 A 55 55 0 0 1 155 120" fill="none" stroke="#F8AD16" stroke-width="16" stroke-linecap="round"/>
+  <path d="M 60 120 A 40 40 0 0 1 140 120" fill="none" stroke="#08ADAE" stroke-width="16" stroke-linecap="round"/>
+  <path d="M 75 120 A 25 25 0 0 1 125 120" fill="none" stroke="#7956CD" stroke-width="16" stroke-linecap="round"/>
+</svg>
