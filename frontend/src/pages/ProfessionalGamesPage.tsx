@@ -1,0 +1,251 @@
+import { FileText, GridFour, PencilSimple, Plus, SignOut } from '@phosphor-icons/react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
+
+import logo from '@/assets/logo.png'
+import mascote from '@/assets/mascote.png'
+import { ProfessionalBadge } from '@/components/auth/ProfessionalBadge'
+import { GameManagementCard } from '@/components/profissional/GameManagementCard'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ApiRequestError, fetchMeApi } from '@/lib/api'
+import { clearAuth, getToken } from '@/lib/auth'
+import { fetchMyGamesApi, publishGameApi, unpublishGameApi } from '@/lib/games'
+import { cn } from '@/lib/utils'
+import type { Game } from '@/types/game'
+
+type GameFilter = 'all' | 'published' | 'draft'
+
+const FILTROS: Array<{ value: GameFilter; label: string; icon: typeof GridFour }> = [
+  { value: 'all', label: 'Todos', icon: GridFour },
+  { value: 'published', label: 'Publicados', icon: FileText },
+  { value: 'draft', label: 'Rascunhos', icon: PencilSimple },
+]
+
+/**
+ * Gestão de jogos do profissional (referência home-profissional-biblioteca):
+ * header "Meus jogos" + botão "Criar jogo", filtros Todos/Publicados/Rascunhos
+ * e grid dos jogos reais do profissional (GET /api/games?scope=mine) com
+ * publicar/despublicar. Zero mock — estados de carga/erro/vazio são honestos.
+ */
+export function ProfessionalGamesPage() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [filter, setFilter] = useState<GameFilter>('all')
+  const [busyGameId, setBusyGameId] = useState<number | null>(null)
+
+  const meQuery = useQuery({
+    queryKey: ['me'],
+    queryFn: fetchMeApi,
+    enabled: Boolean(getToken()),
+    retry: false,
+  })
+
+  const gamesQuery = useQuery({
+    queryKey: ['games', 'mine'],
+    queryFn: fetchMyGamesApi,
+    enabled: Boolean(getToken()),
+    retry: false,
+  })
+
+  useEffect(() => {
+    if (meQuery.error instanceof ApiRequestError && meQuery.error.status === 401) {
+      clearAuth()
+      void navigate({ to: '/login' })
+    }
+  }, [meQuery.error, navigate])
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: async (game: Game) => {
+      return game.status === 'published' ? unpublishGameApi(game.id) : publishGameApi(game.id)
+    },
+    onMutate: (game) => setBusyGameId(game.id),
+    onSettled: () => {
+      setBusyGameId(null)
+      void queryClient.invalidateQueries({ queryKey: ['games', 'mine'] })
+    },
+  })
+
+  const handleLogout = () => {
+    clearAuth()
+    void navigate({ to: '/login' })
+  }
+
+  const games = gamesQuery.data?.items ?? []
+  const visibleGames = games.filter((game) => (filter === 'all' ? true : game.status === filter))
+  const publishedCount = games.filter((game) => game.status === 'published').length
+  const draftCount = games.length - publishedCount
+
+  return (
+    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-cream text-navy">
+      {/* Decoração clay sutil (turquesa/coral), puramente decorativa */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <div className="clay-blob absolute -right-24 top-32 size-72 rotate-12 rounded-[48%_52%_55%_45%/52%_46%_54%_48%] bg-gradient-to-br from-turquoise to-turquoise-dark opacity-15" />
+        <div className="clay-blob absolute -left-20 bottom-16 size-64 -rotate-6 rounded-[55%_45%_48%_52%/46%_56%_44%_54%] bg-gradient-to-br from-coral to-coral-dark opacity-10" />
+      </div>
+
+      <header className="relative z-10 flex items-center justify-between gap-3 px-4 py-4 sm:px-8 lg:px-14">
+        <img
+          src={logo}
+          alt="Tá Sabido"
+          draggable={false}
+          className="h-10 w-auto select-none sm:h-12"
+        />
+        <div className="flex items-center gap-3">
+          <span className="hidden md:block">
+            <ProfessionalBadge />
+          </span>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-navy/10 bg-white px-4 text-sm font-bold text-navy shadow-clay-sm transition-[transform,box-shadow] hover:-translate-y-0.5 active:translate-y-0"
+          >
+            <SignOut aria-hidden="true" className="size-4" />
+            Sair
+          </button>
+        </div>
+      </header>
+
+      <main className="relative z-10 mx-auto w-full max-w-5xl flex-1 px-4 pb-16 sm:px-8">
+        <div className="rounded-[2.5rem] bg-panel p-5 shadow-clay sm:p-8 lg:p-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-navy sm:text-4xl">Meus jogos</h1>
+              <p className="mt-1 text-base font-medium text-muted-foreground sm:text-lg">
+                Crie e gerencie os jogos das suas crianças
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void navigate({ to: '/profissional/novo' })}
+              className="inline-flex h-12 items-center justify-center gap-2 self-start rounded-full bg-blue px-6 text-base font-bold text-white shadow-clay-btn transition-[transform,box-shadow] hover:-translate-y-0.5 active:translate-y-0 sm:self-auto"
+            >
+              <Plus weight="bold" aria-hidden="true" className="size-5" />
+              Criar jogo
+            </button>
+          </div>
+
+          <div
+            role="tablist"
+            aria-label="Filtrar jogos por status"
+            className="mt-6 flex flex-wrap items-center gap-2"
+          >
+            {FILTROS.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={filter === value}
+                onClick={() => setFilter(value)}
+                className={cn(
+                  'inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-bold transition-[box-shadow,color,transform] hover:-translate-y-0.5 active:translate-y-0 sm:px-5 sm:text-base',
+                  filter === value
+                    ? 'bg-white text-turquoise shadow-kid-card ring-2 ring-turquoise/25'
+                    : 'bg-white/60 text-navy shadow-clay-sm hover:bg-white',
+                )}
+              >
+                <Icon weight="bold" aria-hidden="true" className="size-4.5" />
+                {label}
+                {value === 'published' && publishedCount > 0 && (
+                  <span className="rounded-full bg-turquoise/10 px-2 py-0.5 text-xs font-bold text-turquoise">
+                    {publishedCount}
+                  </span>
+                )}
+                {value === 'draft' && draftCount > 0 && (
+                  <span className="rounded-full bg-yellow/20 px-2 py-0.5 text-xs font-bold text-navy">
+                    {draftCount}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6">
+            {gamesQuery.isPending ? (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {[0, 1, 2, 3].map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-center gap-4 rounded-3xl bg-white p-4 shadow-kid-card"
+                  >
+                    <Skeleton className="size-24 rounded-2xl sm:size-28" />
+                    <div className="flex flex-1 flex-col gap-2">
+                      <Skeleton className="h-5 w-40" />
+                      <Skeleton className="h-3 w-28" />
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-10 w-full rounded-full" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : gamesQuery.isError ? (
+              <div className="flex flex-col items-center gap-3 rounded-3xl bg-white px-6 py-10 text-center shadow-kid-card">
+                <p className="text-lg font-bold text-navy">Não conseguimos carregar seus jogos.</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Confere sua conexão e tenta de novo em instantes.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void gamesQuery.refetch()}
+                  className="mt-1 inline-flex h-11 items-center gap-2 rounded-full bg-blue px-6 text-sm font-bold text-white shadow-clay-btn transition-[transform,box-shadow] hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  Tentar de novo
+                </button>
+              </div>
+            ) : visibleGames.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 rounded-3xl bg-white px-6 py-12 text-center shadow-kid-card">
+                <span className="flex size-16 items-center justify-center rounded-full bg-turquoise/10 text-turquoise">
+                  <GridFour weight="bold" aria-hidden="true" className="size-8" />
+                </span>
+                <p className="text-lg font-bold text-navy">
+                  {games.length === 0 ? 'Nenhum jogo por aqui ainda.' : 'Nenhum jogo nesse filtro.'}
+                </p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  {games.length === 0
+                    ? 'Crie o primeiro jogo das suas crianças — é rapidinho.'
+                    : 'Tenta outro filtro ou cria um jogo novo.'}
+                </p>
+                {games.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void navigate({ to: '/profissional/novo' })}
+                    className="mt-1 inline-flex h-11 items-center gap-2 rounded-full bg-blue px-6 text-sm font-bold text-white shadow-clay-btn transition-[transform,box-shadow] hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    <Plus weight="bold" aria-hidden="true" className="size-4" />
+                    Criar jogo
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {visibleGames.map((game) => (
+                  <GameManagementCard
+                    key={game.id}
+                    game={game}
+                    busy={busyGameId === game.id}
+                    onEdit={(selected) =>
+                      void navigate({
+                        to: '/profissional/editar/$gameId',
+                        params: { gameId: String(selected.id) },
+                      })
+                    }
+                    onToggleStatus={(selected) => toggleStatusMutation.mutate(selected)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Sabidinho decorativo (referência: canto inferior direito) */}
+      <img
+        src={mascote}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="pointer-events-none absolute -bottom-2 right-2 z-10 hidden h-32 w-auto drop-shadow-[0_14px_20px_rgb(33_30_26/0.25)] lg:block xl:right-8"
+      />
+    </div>
+  )
+}

@@ -16,12 +16,14 @@ import { CadastroProfissionalPage } from '@/pages/CadastroProfissionalPage'
 import { CadastroProfissionalSobrePage } from '@/pages/CadastroProfissionalSobrePage'
 import { CadastroSobrePage } from '@/pages/CadastroSobrePage'
 import { ForgotPasswordStubPage } from '@/pages/ForgotPasswordStubPage'
+import { GameFormPage } from '@/pages/GameFormPage'
 import { HomePage } from '@/pages/HomePage'
 import { JogoEmConstrucaoPage } from '@/pages/JogoEmConstrucaoPage'
 import { JogosPage } from '@/pages/JogosPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { ParentsAreaPage } from '@/pages/ParentsAreaPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
+import { ProfessionalGamesPage } from '@/pages/ProfessionalGamesPage'
 import { ProfessionalLoginPage } from '@/pages/ProfessionalLoginPage'
 import { useParentPinStore } from '@/stores/useParentPinStore'
 
@@ -58,9 +60,13 @@ const homeRoute = createRoute({
     if (!getToken()) {
       throw redirect({ to: '/login' })
     }
-    // Home pós-login da família = tela de jogos (modo criança).
+    // Home pós-login: família → tela de jogos (modo criança);
+    // profissional → gestão de jogos (home profissional das referências).
     if (getStoredUser()?.role === 'family') {
       throw redirect({ to: '/jogos' })
+    }
+    if (getStoredUser()?.role === 'professional') {
+      throw redirect({ to: '/profissional' })
     }
   },
   component: HomePage,
@@ -165,6 +171,37 @@ const parentsAreaRoute = createRoute({
   component: ParentsAreaPage,
 })
 
+/** Guard das rotas do profissional: logado e com papel professional. */
+function requireProfessional() {
+  if (!getToken()) {
+    throw redirect({ to: '/login' })
+  }
+  if (getStoredUser()?.role !== 'professional') {
+    throw redirect({ to: '/' })
+  }
+}
+
+const profissionalRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profissional',
+  beforeLoad: requireProfessional,
+  component: ProfessionalGamesPage,
+})
+
+const novoJogoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profissional/novo',
+  beforeLoad: requireProfessional,
+  component: GameFormPage,
+})
+
+const editarJogoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profissional/editar/$gameId',
+  beforeLoad: requireProfessional,
+  component: GameFormPage,
+})
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   loginRoute,
@@ -183,6 +220,9 @@ const routeTree = rootRoute.addChildren([
   jogosRoute,
   pinRoute,
   parentsAreaRoute,
+  profissionalRoute,
+  novoJogoRoute,
+  editarJogoRoute,
 ])
 
 export const router = createRouter({
