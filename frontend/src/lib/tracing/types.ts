@@ -1,6 +1,6 @@
 /**
- * Tipos e esquemas do motor de traçado (tracing engine).
- * Ticket A1: TypeScript independente de framework, evidência serializável v1.
+ * Tipos e esquemas do motor de traçado (tracing engine) e configurações profissionais/adultas.
+ * Tickets A1-A4: TypeScript independente de framework, evidência v1, configurações e overrides.
  */
 
 export interface Point {
@@ -35,7 +35,7 @@ export type TracingMode = 'strict_continuous' | 'timed_pause' | 'free'
  * - `valid_touching`: limiar de sucesso atingido (score >= threshold), mas criança ainda está com o dedo na tela.
  * - `grace`: em modo timed_pause, ponteiro foi solto com score < threshold e contagem regressiva está ativa.
  * - `reset`: estado de reset (ao soltar em strict_continuous ou ao expirar o grace em timed_pause).
- * - `invalid`: desvio excessivo ou toque inválido registrado.
+ * - `invalid`: desvio excessivo ou toque fora dos limites registrado.
  * - `completed`: glifo concluído com sucesso ao soltar o ponteiro com score >= threshold. Glifo travado.
  */
 export type TracingState =
@@ -192,4 +192,132 @@ export interface TracingEngineOptions {
   onGraceTick?: (remainingMs: number, totalMs: number) => void
   onComplete?: (evidence: TracingEvidenceV1) => void
   onReset?: () => void
+}
+
+// --------------------------------------------------------------------------
+// Configurações do Jogo de Traçado (Ticket A4: Gestão do Profissional / Adulto)
+// --------------------------------------------------------------------------
+
+/** Configuração base de comportamento de traçado do jogo. */
+export interface TracingGameConfig {
+  /** Modo de contato: Contínuo estrito | Pausa com prazo | Livre */
+  mode: TracingMode
+  /** Limiar de pontuação para conclusão (0-100, padrão 70). */
+  completionThreshold: number
+  /** Prazo de pausa em segundos (0, 1, 1.5, 2, 3; padrão 1.5s). */
+  graceDurationSeconds: number
+  /** Glifos permitidos/selecionados do catálogo imutável. */
+  allowedGlyphs: string[]
+}
+
+/** Configuração padrão do jogo de traçado. */
+export const DEFAULT_TRACING_GAME_CONFIG: TracingGameConfig = {
+  mode: 'timed_pause',
+  completionThreshold: 70,
+  graceDurationSeconds: 1.5,
+  allowedGlyphs: [
+    'A',
+    'B',
+    'C',
+    'D',
+    'E',
+    'F',
+    'G',
+    'H',
+    'I',
+    'J',
+    'K',
+    'L',
+    'M',
+    'N',
+    'O',
+    'P',
+    'Q',
+    'R',
+    'S',
+    'T',
+    'U',
+    'V',
+    'W',
+    'X',
+    'Y',
+    'Z',
+    'Á',
+    'À',
+    'Â',
+    'Ã',
+    'É',
+    'Ê',
+    'Í',
+    'Ó',
+    'Ô',
+    'Õ',
+    'Ú',
+    'Ç',
+    'Ü',
+  ],
+}
+
+/** Sobrescreve parâmetros de traçado por atribuição individual à criança. */
+export interface TracingAssignmentOverride {
+  childId: string
+  childName: string
+  gameId: number
+  /** null indica que herda o valor padrão do jogo. */
+  mode: TracingMode | null
+  completionThreshold: number | null
+  graceDurationSeconds: number | null
+  allowedGlyphs: string[] | null
+}
+
+/** Configuração efetiva resultante da herança + overrides. */
+export interface TracingEffectiveSettings {
+  mode: TracingMode
+  completionThreshold: number
+  graceDurationSeconds: number
+  allowedGlyphs: string[]
+  isOverridden: {
+    mode: boolean
+    completionThreshold: boolean
+    graceDurationSeconds: boolean
+    allowedGlyphs: boolean
+  }
+}
+
+/**
+ * Calcula as configurações efetivas de traçado combinando o padrão do jogo com overrides da criança.
+ */
+export function resolveEffectiveTracingSettings(
+  gameConfig: TracingGameConfig = DEFAULT_TRACING_GAME_CONFIG,
+  override?: TracingAssignmentOverride | null,
+): TracingEffectiveSettings {
+  if (!override) {
+    return {
+      mode: gameConfig.mode,
+      completionThreshold: gameConfig.completionThreshold,
+      graceDurationSeconds: gameConfig.graceDurationSeconds,
+      allowedGlyphs: [...gameConfig.allowedGlyphs],
+      isOverridden: {
+        mode: false,
+        completionThreshold: false,
+        graceDurationSeconds: false,
+        allowedGlyphs: false,
+      },
+    }
+  }
+
+  return {
+    mode: override.mode ?? gameConfig.mode,
+    completionThreshold: override.completionThreshold ?? gameConfig.completionThreshold,
+    graceDurationSeconds: override.graceDurationSeconds ?? gameConfig.graceDurationSeconds,
+    allowedGlyphs: override.allowedGlyphs
+      ? [...override.allowedGlyphs]
+      : [...gameConfig.allowedGlyphs],
+    isOverridden: {
+      mode: override.mode !== null,
+      completionThreshold: override.completionThreshold !== null,
+      graceDurationSeconds: override.graceDurationSeconds !== null,
+      allowedGlyphs: override.allowedGlyphs !== null,
+    },
+  }
 }

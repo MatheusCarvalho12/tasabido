@@ -27,6 +27,7 @@ import { PrivacyPage } from '@/pages/PrivacyPage'
 import { ProfessionalGamesPage } from '@/pages/ProfessionalGamesPage'
 import { ProfessionalLoginPage } from '@/pages/ProfessionalLoginPage'
 import { TracingGamePage } from '@/pages/TracingGamePage'
+import { TracingRunReviewPage } from '@/pages/TracingRunReviewPage'
 import { useParentPinStore } from '@/stores/useParentPinStore'
 
 const rootRoute = createRootRoute({
@@ -212,6 +213,24 @@ const editarJogoRoute = createRoute({
   component: GameFormPage,
 })
 
+const profissionalRunReviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profissional/partidas/$runId',
+  beforeLoad: requireProfessional,
+  component: TracingRunReviewPage,
+})
+
+const parentsRunReviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/pais/partidas/$runId',
+  beforeLoad: () => {
+    if (!useParentPinStore.getState().unlocked) {
+      throw redirect({ to: '/' })
+    }
+  },
+  component: TracingRunReviewPage,
+})
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   loginRoute,
@@ -230,9 +249,11 @@ const routeTree = rootRoute.addChildren([
   jogosRoute,
   pinRoute,
   parentsAreaRoute,
+  parentsRunReviewRoute,
   profissionalRoute,
   novoJogoRoute,
   editarJogoRoute,
+  profissionalRunReviewRoute,
 ])
 
 export const router = createRouter({

@@ -186,6 +186,48 @@ function createGlyph(
 // Catálogo Imutável de Geometrias Canônicas (A-Z, Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç, Ü)
 // --------------------------------------------------------------------------
 
+export const IMMUTABLE_GLYPH_CATALOG_KEYS: string[] = [
+  'A',
+  'B',
+  'C',
+  'D',
+  'E',
+  'F',
+  'G',
+  'H',
+  'I',
+  'J',
+  'K',
+  'L',
+  'M',
+  'N',
+  'O',
+  'P',
+  'Q',
+  'R',
+  'S',
+  'T',
+  'U',
+  'V',
+  'W',
+  'X',
+  'Y',
+  'Z',
+  'Á',
+  'À',
+  'Â',
+  'Ã',
+  'É',
+  'Ê',
+  'Í',
+  'Ó',
+  'Ô',
+  'Õ',
+  'Ú',
+  'Ç',
+  'Ü',
+]
+
 const CANONICAL_GLYPHS: Record<string, GlyphGeometry> = {
   A: createGlyph('A', 'A', 'Letra A', [
     createPolylineStroke(

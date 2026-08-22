@@ -74,7 +74,7 @@ describe('GameForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /Salvar rascunho/ }))
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
-    const [values, files, publish] = onSubmit.mock.calls[0]
+    const [values, files, publish, tracingConfig] = onSubmit.mock.calls[0]
     expect(values).toMatchObject({
       titulo: 'Escreva seu nome',
       categoria: 'escrita',
@@ -82,6 +82,30 @@ describe('GameForm', () => {
     })
     expect(files).toEqual({ svg: null, thumb: null, banner: null })
     expect(publish).toBe(false)
+    expect(tracingConfig).toMatchObject({
+      mode: 'timed_pause',
+      completionThreshold: 70,
+      graceDurationSeconds: 1.5,
+    })
+  })
+
+  it('permite configurar parâmetros de traçado no formulário', () => {
+    const onSubmit = vi.fn()
+    render(<GameForm onSubmit={onSubmit} onCancel={vi.fn()} />)
+
+    preencherCamposObrigatorios()
+    fireEvent.click(screen.getByText('Contínuo estrito'))
+    fireEvent.click(screen.getByRole('button', { name: /Salvar rascunho/ }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      false,
+      expect.objectContaining({
+        mode: 'strict_continuous',
+        completionThreshold: 70,
+      }),
+    )
   })
 
   it('publicar envia publish=true', () => {

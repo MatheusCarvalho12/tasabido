@@ -10,6 +10,7 @@ import {
 import { useState } from 'react'
 
 import { FileUploadField } from '@/components/profissional/FileUploadField'
+import { TracingBehaviorSection } from '@/components/profissional/TracingBehaviorSection'
 import { Field, FieldContent, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -20,6 +21,7 @@ import {
   IMAGE_UPLOAD_RULE,
   SVG_UPLOAD_RULE,
 } from '@/lib/games'
+import { DEFAULT_TRACING_GAME_CONFIG, type TracingGameConfig } from '@/lib/tracing/types'
 import { cn } from '@/lib/utils'
 import type { Game } from '@/types/game'
 
@@ -48,21 +50,35 @@ const CATEGORIAS_SUGERIDAS = [
 export interface GameFormProps {
   /** Jogo em edição; null/undefined = criação. */
   game?: Game | null
+  /** Configuração inicial de traçado se existente. */
+  initialTracingConfig?: TracingGameConfig
   /** Requisição em andamento (desabilita os botões de ação). */
   submitting?: boolean
   /** Erro da API (mostrado acima das ações). */
   submitError?: string | null
-  onSubmit: (values: GameFormValues, files: GameFilesPayload, publish: boolean) => void
+  onSubmit: (
+    values: GameFormValues,
+    files: GameFilesPayload,
+    publish: boolean,
+    tracingConfig?: TracingGameConfig,
+  ) => void
   onCancel: () => void
 }
 
 /**
  * Formulário criar/editar jogo (gestão do profissional): campos do contrato
- * (título, categoria, descrição, tutorial, visibilidade, cores) + uploads de
- * SVG/thumbnail/banner com preview, validação zod idêntica ao backend e duas
+ * (título, categoria, descrição, tutorial, visibilidade, cores, comportamento do traçado)
+ * + uploads de SVG/thumbnail/banner com preview, validação zod e duas
  * ações: salvar rascunho (POST/PATCH) e publicar (POST /publish).
  */
-export function GameForm({ game, submitting, submitError, onSubmit, onCancel }: GameFormProps) {
+export function GameForm({
+  game,
+  initialTracingConfig,
+  submitting,
+  submitError,
+  onSubmit,
+  onCancel,
+}: GameFormProps) {
   const [titulo, setTitulo] = useState(game?.titulo ?? '')
   const [categoria, setCategoria] = useState(game?.categoria ?? '')
   const [descricao, setDescricao] = useState(game?.descricao ?? '')
@@ -74,6 +90,9 @@ export function GameForm({ game, submitting, submitError, onSubmit, onCancel }: 
   const [svgFile, setSvgFile] = useState<File | null>(null)
   const [thumbFile, setThumbFile] = useState<File | null>(null)
   const [bannerFile, setBannerFile] = useState<File | null>(null)
+  const [tracingConfig, setTracingConfig] = useState<TracingGameConfig>(
+    initialTracingConfig ?? DEFAULT_TRACING_GAME_CONFIG,
+  )
   const [errors, setErrors] = useState<Partial<Record<keyof GameFormValues, string>>>({})
 
   const parsed = gameFormSchema.safeParse({
@@ -100,7 +119,12 @@ export function GameForm({ game, submitting, submitError, onSubmit, onCancel }: 
       setErrors(nextErrors)
       return
     }
-    onSubmit(parsed.data, { svg: svgFile, thumb: thumbFile, banner: bannerFile }, publish)
+    onSubmit(
+      parsed.data,
+      { svg: svgFile, thumb: thumbFile, banner: bannerFile },
+      publish,
+      tracingConfig,
+    )
   }
 
   const toggleCor = (cor: string) => {
@@ -283,6 +307,9 @@ export function GameForm({ game, submitting, submitError, onSubmit, onCancel }: 
           })}
         </div>
       </fieldset>
+
+      {/* Seção Comportamento do Traçado (Ticket A4: Gestão do Profissional) */}
+      <TracingBehaviorSection config={tracingConfig} onChange={setTracingConfig} />
 
       <div className="grid gap-5 sm:grid-cols-3">
         <FileUploadField

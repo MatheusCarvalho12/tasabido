@@ -19,6 +19,8 @@ import {
   uploadGameImagesApi,
   uploadGameSvgApi,
 } from '@/lib/games'
+import { saveTracingGameConfigApi } from '@/lib/tracing/adapter'
+import type { TracingGameConfig } from '@/lib/tracing/types'
 import type { Game } from '@/types/game'
 
 /**
@@ -65,6 +67,7 @@ export function GameFormPage() {
     values: GameFormValues,
     files: GameFilesPayload,
     publish: boolean,
+    tracingConfig?: TracingGameConfig,
   ) => {
     setSubmitting(true)
     setSubmitError(null)
@@ -76,6 +79,9 @@ export function GameFormPage() {
       }
       if (files.thumb || files.banner) {
         await uploadGameImagesApi(saved.id, files.thumb, files.banner)
+      }
+      if (tracingConfig) {
+        await saveTracingGameConfigApi(saved.id, tracingConfig)
       }
       if (publish && saved.status !== 'published') {
         await publishGameApi(saved.id)
