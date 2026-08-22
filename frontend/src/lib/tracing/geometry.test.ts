@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildGlyphSetGeometries,
   calculatePolylineLength,
+  createGlyphGeometryFromServer,
   distance,
   distanceSquared,
   getGlyphGeometry,
@@ -80,7 +82,6 @@ describe('normalizeChildFirstName and glyph validation', () => {
   })
 
   it('preserves full character sequence and validates against catalog without silent skipping', () => {
-    // Unsupported character '9' or 'Ø' is NEVER silently dropped into 'MLLER'
     const normalizedWith9 = normalizeChildFirstName('M9ller')
     expect(normalizedWith9).toEqual(['M', '9', 'L', 'L', 'E', 'R'])
     const validation9 = validateGlyphSequence(normalizedWith9)
@@ -101,7 +102,7 @@ describe('normalizeChildFirstName and glyph validation', () => {
   })
 })
 
-describe('canonical glyph catalog', () => {
+describe('canonical glyph catalog and server geometry construction (Ticket A5)', () => {
   it('provides geometry for all A-Z letters and Ü with exact 0.70 threshold', () => {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZÜ'.split('')
     for (const letter of alphabet) {
@@ -131,5 +132,61 @@ describe('canonical glyph catalog', () => {
     expect(isGlyphSupported('?')).toBe(false)
     expect(() => getGlyphGeometry('9')).toThrow(UnsupportedGlyphError)
     expect(() => getGlyphGeometry('Ø')).toThrow(UnsupportedGlyphError)
+  })
+
+  it('createGlyphGeometryFromServer builds renderable GlyphGeometry from backend stroke arrays', () => {
+    const rawStrokes = [
+      [
+        [0.08, 1.0],
+        [0.5, 0.0],
+        [0.92, 1.0],
+      ],
+      [
+        [0.24, 0.59],
+        [0.76, 0.59],
+      ],
+    ]
+
+    const geom = createGlyphGeometryFromServer('A', rawStrokes, 0.085, 0.7)
+    expect(geom.character).toBe('A')
+    expect(geom.strokes).toHaveLength(2)
+    expect(geom.strokes[0]?.pathData).toBe('M 8 100 L 50 0 L 92 100')
+    expect(geom.strokes[1]?.pathData).toBe('M 24 59 L 76 59')
+    expect(geom.strokes[0]?.startPoint).toEqual({ x: 0.08, y: 1.0 })
+    expect(geom.strokes[0]?.endPoint).toEqual({ x: 0.92, y: 1.0 })
+    expect(geom.totalTargetLength).toBeGreaterThan(0)
+    expect(geom.toleranceRadius).toBe(0.085)
+    expect(geom.completionThreshold).toBe(0.7)
+  })
+
+  it('buildGlyphSetGeometries maps full backend dictionary', () => {
+    const geometryMap = {
+      I: [
+        [
+          [0.5, 0.0],
+          [0.5, 1.0],
+        ],
+      ],
+      T: [
+        [
+          [0.1, 0.0],
+          [0.9, 0.0],
+        ],
+        [
+          [0.5, 0.0],
+          [0.5, 1.0],
+        ],
+      ],
+    }
+
+    const built = buildGlyphSetGeometries(geometryMap, 0.085)
+    expect(Object.keys(built)).toEqual(['I', 'T'])
+    expect(built.I?.strokes).toHaveLength(1)
+    expect(built.T?.strokes).toHaveLength(2)
+  })
+
+  it('createGlyphGeometryFromServer throws UnsupportedGlyphError on empty or invalid strokes', () => {
+    expect(() => createGlyphGeometryFromServer('X', [])).toThrow(UnsupportedGlyphError)
+    expect(() => createGlyphGeometryFromServer('X', [[]])).toThrow(UnsupportedGlyphError)
   })
 })

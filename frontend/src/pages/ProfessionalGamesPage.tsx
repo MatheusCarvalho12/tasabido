@@ -27,12 +27,14 @@ import {
   fetchChildAssignmentOverrideApi,
   fetchLinkedChildrenApi,
   fetchTracingGameConfigApi,
+  fetchTracingRunReplayApi,
   fetchTracingRunsListApi,
   type LinkedChild,
   resetChildAssignmentOverrideApi,
   saveChildAssignmentOverrideApi,
 } from '@/lib/tracing/adapter'
 import type {
+  BackendTracingRunOut,
   TracingAssignmentOverride,
   TracingGameConfig,
   TracingSessionEvidenceV1,
@@ -51,7 +53,7 @@ const FILTROS: Array<{ value: GameFilter; label: string; icon: typeof GridFour }
 /**
  * Gestão de jogos do profissional:
  * - Listagem e publicação de jogos (GET /api/games?scope=mine).
- * - Jornada de personalização de parâmetros de traçado por atribuição individual à criança (Ticket A4).
+ * - Jornada de personalização de parâmetros de traçado por atribuição individual à criança (Tickets A4 & A5).
  * - Auditoria e revisão em-app de partidas registradas sem dados inventados de runtime.
  */
 export function ProfessionalGamesPage() {
@@ -71,8 +73,10 @@ export function ProfessionalGamesPage() {
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState<boolean>(false)
 
   // Estado de auditoria de partidas
-  const [reviewedSession, setReviewedSession] = useState<TracingSessionEvidenceV1 | null>(null)
-  const [recentRuns, setRecentRuns] = useState<TracingSessionEvidenceV1[]>([])
+  const [reviewedSession, setReviewedSession] = useState<
+    TracingSessionEvidenceV1 | BackendTracingRunOut | null
+  >(null)
+  const [recentRuns, setRecentRuns] = useState<BackendTracingRunOut[]>([])
 
   const meQuery = useQuery({
     queryKey: ['me'],
@@ -89,18 +93,27 @@ export function ProfessionalGamesPage() {
   })
 
   useEffect(() => {
-    void fetchLinkedChildrenApi().then((children) => {
-      setLinkedChildren(children)
-      if (children.length > 0) {
-        setSelectedChild(children[0] ?? null)
-      } else {
+    void fetchLinkedChildrenApi()
+      .then((children) => {
+        setLinkedChildren(children)
+        if (children.length > 0) {
+          setSelectedChild(children[0] ?? null)
+        } else {
+          setSelectedChild(null)
+        }
+      })
+      .catch(() => {
+        setLinkedChildren([])
         setSelectedChild(null)
-      }
-    })
+      })
 
-    void fetchTracingRunsListApi().then((runs) => {
-      setRecentRuns(runs)
-    })
+    void fetchTracingRunsListApi()
+      .then((runs) => {
+        setRecentRuns(runs)
+      })
+      .catch(() => {
+        setRecentRuns([])
+      })
   }, [])
 
   useEffect(() => {
@@ -131,12 +144,15 @@ export function ProfessionalGamesPage() {
       return
     }
 
+    const assignment = child.assignments?.find((a) => a.game_id === game.id)
+    const assignmentId = assignment?.assignment_id
+
     setCustomizingGame(game)
     const config = await fetchTracingGameConfigApi(game.id)
     setCustomizingConfig(config)
     setSelectedChild(child)
 
-    const override = await fetchChildAssignmentOverrideApi(child.id, game.id)
+    const override = await fetchChildAssignmentOverrideApi(child.child_id, game.id, assignmentId)
     setExistingOverride(override)
     setIsOverrideModalOpen(true)
   }
@@ -149,9 +165,22 @@ export function ProfessionalGamesPage() {
 
   const handleResetOverride = async () => {
     if (selectedChild && customizingGame) {
-      await resetChildAssignmentOverrideApi(selectedChild.id, customizingGame.id)
+      await resetChildAssignmentOverrideApi(
+        selectedChild.child_id,
+        customizingGame.id,
+        existingOverride?.assignmentId,
+      )
     }
     setExistingOverride(null)
+  }
+
+  const handleOpenReplay = async (run: BackendTracingRunOut) => {
+    try {
+      const fullReplay = await fetchTracingRunReplayApi(run.id)
+      setReviewedSession(fullReplay)
+    } catch {
+      setReviewedSession(run)
+    }
   }
 
   const handleLogout = () => {
@@ -235,15 +264,15 @@ export function ProfessionalGamesPage() {
                 <div className="mt-4 flex items-center gap-2 text-xs font-bold text-kid-muted">
                   <span>Criança selecionada para ajustes:</span>
                   <select
-                    value={selectedChild?.id ?? ''}
+                    value={selectedChild?.child_id ?? ''}
                     onChange={(e) => {
-                      const found = linkedChildren.find((c) => c.id === e.target.value)
+                      const found = linkedChildren.find((c) => c.child_id === e.target.value)
                       if (found) setSelectedChild(found)
                     }}
                     className="rounded-lg border border-border bg-white px-2 py-1 text-navy font-extrabold"
                   >
                     {linkedChildren.map((c) => (
-                      <option key={c.id} value={c.id}>
+                      <option key={c.child_id} value={c.child_id}>
                         {c.name}
                       </option>
                     ))}
@@ -390,21 +419,18 @@ export function ProfessionalGamesPage() {
               ) : (
                 <div className="grid gap-3 pt-4 sm:grid-cols-2 lg:grid-cols-3">
                   {recentRuns.map((run) => {
-                    const avgScore = Math.round(
-                      (run.glyphs.reduce((acc, g) => acc + g.finalScore.overall, 0) /
-                        run.glyphs.length) *
-                        100,
-                    )
-                    const formattedDate = new Date(run.startedAt).toLocaleDateString('pt-BR', {
-                      day: '2-digit',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
+                    const formattedDate = run.started_at
+                      ? new Date(run.started_at).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'Data indisponível'
 
                     return (
                       <div
-                        key={run.sessionId}
+                        key={run.id}
                         className="p-4 rounded-2xl bg-cream border border-kid-bg flex flex-col justify-between gap-3 shadow-inner"
                       >
                         <div className="flex flex-col gap-1">
@@ -423,15 +449,16 @@ export function ProfessionalGamesPage() {
                               </span>
                             )}
                           </div>
-                          <strong className="text-base text-navy">{run.childName}</strong>
+                          <strong className="text-base text-navy">Partida #{run.id}</strong>
                           <span className="text-xs text-blue font-black">
-                            Score geral: {avgScore}% ({run.glyphs.length} glifos)
+                            Score geral: {run.score ?? 0}% ({run.glyph_sequence?.length ?? 0}{' '}
+                            letras)
                           </span>
                         </div>
 
                         <button
                           type="button"
-                          onClick={() => setReviewedSession(run)}
+                          onClick={() => void handleOpenReplay(run)}
                           className="h-9 w-full rounded-full bg-white text-navy border border-border text-xs font-bold hover:bg-blue hover:text-white transition-colors"
                         >
                           Auditar partida e replay
@@ -449,10 +476,13 @@ export function ProfessionalGamesPage() {
       {/* Modal de Personalização por Criança (Integrado na Jornada do Profissional) */}
       {customizingGame && selectedChild && (
         <ChildAssignmentOverrideModal
-          childId={selectedChild.id}
+          childId={selectedChild.child_id}
           childName={selectedChild.name}
           gameId={customizingGame.id}
           gameTitle={customizingGame.titulo}
+          assignmentId={
+            selectedChild.assignments?.find((a) => a.game_id === customizingGame.id)?.assignment_id
+          }
           gameConfig={customizingConfig}
           existingOverride={existingOverride}
           isOpen={isOverrideModalOpen}

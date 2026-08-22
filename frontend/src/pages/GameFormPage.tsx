@@ -19,7 +19,7 @@ import {
   uploadGameImagesApi,
   uploadGameSvgApi,
 } from '@/lib/games'
-import { saveTracingGameConfigApi } from '@/lib/tracing/adapter'
+import { fetchTracingGameConfigApi, saveTracingGameConfigApi } from '@/lib/tracing/adapter'
 import type { TracingGameConfig } from '@/lib/tracing/types'
 import type { Game } from '@/types/game'
 
@@ -50,6 +50,13 @@ export function GameFormPage() {
     queryKey: ['games', 'mine'],
     queryFn: fetchMyGamesApi,
     enabled: Boolean(getToken()) && editing,
+    retry: false,
+  })
+
+  const tracingConfigQuery = useQuery({
+    queryKey: ['game-tracing-config', gameId],
+    queryFn: () => (gameId ? fetchTracingGameConfigApi(gameId) : null),
+    enabled: Boolean(getToken()) && editing && Boolean(gameId),
     retry: false,
   })
 
@@ -164,6 +171,7 @@ export function GameFormPage() {
               <GameForm
                 key={game?.id ?? 'novo'}
                 game={editing ? game : null}
+                initialTracingConfig={tracingConfigQuery.data ?? undefined}
                 submitting={submitting}
                 submitError={submitError}
                 onSubmit={handleSubmit}

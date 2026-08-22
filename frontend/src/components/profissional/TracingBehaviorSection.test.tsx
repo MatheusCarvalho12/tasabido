@@ -9,7 +9,7 @@ describe('TracingBehaviorSection (Ticket A4 Professional Tracing Config)', () =>
 
     expect(screen.getByText(/Comportamento do traçado/i)).toBeInTheDocument()
     expect(screen.getByText(/Maiúsculas bloco/i)).toBeInTheDocument()
-    expect(screen.getByText(/v1.0.0/i)).toBeInTheDocument()
+    expect(screen.getByText(/uppercase-block-v1/i)).toBeInTheDocument()
     expect(screen.getAllByText(/39 caracteres/i).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText(new RegExp(CANONICAL_GLYPH_SET_HASH, 'i'))).toBeInTheDocument()
     expect(screen.getAllByText(/70%/i).length).toBeGreaterThanOrEqual(1)

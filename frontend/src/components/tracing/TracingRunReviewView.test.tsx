@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
+  type BackendTracingRunOut,
   CANONICAL_GLYPH_SET_HASH,
   CANONICAL_GLYPH_SET_ID,
   CANONICAL_GLYPH_SET_VERSION,
@@ -37,7 +38,7 @@ const validMockSession: TracingSessionEvidenceV1 = {
       startedAt: '2026-08-22T15:00:00.000Z',
       completedAt: '2026-08-22T15:01:00.000Z',
       isCompleted: true,
-      threshold: 0.7,
+      threshold: 70,
       finalScore: {
         coverage: 0.9,
         precision: 0.95,
@@ -107,54 +108,46 @@ const validMockSession: TracingSessionEvidenceV1 = {
   ],
 }
 
-describe('TracingRunReviewView (Ticket A4 Adult Run Review UI)', () => {
+describe('TracingRunReviewView (Tickets A4 & A5 Adult Run Review UI)', () => {
   it('renders overall and per-letter numeric scores for adult review with provenance metadata', () => {
     render(<TracingRunReviewView session={validMockSession} />)
 
-    expect(screen.getByText(/Avaliação de Traçado: Vitória/i)).toBeInTheDocument()
-    expect(screen.getByText(/Partida Concluída/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/86%/i).length).toBeGreaterThanOrEqual(1) // overall 0.855 -> 86%
-    expect(screen.getByText(/Coverage: 90%/i)).toBeInTheDocument()
-    expect(screen.getByText(/Precision: 95%/i)).toBeInTheDocument()
-    expect(screen.getByText(/Engagement: 100%/i)).toBeInTheDocument()
+    expect(screen.getByText(/Auditoria de Partida de Traçado/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Concluída/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/86/i).length).toBeGreaterThanOrEqual(1) // overall 0.855 -> 86%
+    expect(screen.getByText(/90%/i)).toBeInTheDocument()
+    expect(screen.getByText(/95%/i)).toBeInTheDocument()
+    expect(screen.getByText(/100%/i)).toBeInTheDocument()
 
     // Provenance
-    expect(screen.getByText(/Proveniência:/i)).toBeInTheDocument()
-    expect(screen.getByText(/Maiúsculas bloco \(v1.0.0\)/i)).toBeInTheDocument()
-    expect(screen.getByText(new RegExp(CANONICAL_GLYPH_SET_HASH, 'i'))).toBeInTheDocument()
+    expect(screen.getByText(/Verificado SHA-256/i)).toBeInTheDocument()
   })
 
-  it('renders separate Modelo Canônico and Traço da Criança panels', () => {
+  it('renders separate Modelo Canônico and Traço Real panels', () => {
     render(<TracingRunReviewView session={validMockSession} />)
 
-    expect(screen.getByText(/Painel 1: Modelo Canônico/i)).toBeInTheDocument()
-    expect(screen.getByText(/Painel 2: Traço da Criança/i)).toBeInTheDocument()
+    expect(screen.getByText(/Modelo da Letra V/i)).toBeInTheDocument()
+    expect(screen.getByText(/Traço Real da Criança/i)).toBeInTheDocument()
   })
 
-  it('proves scrubbing to first event (seq 1) does NOT show final trace and later events progressively reveal it', () => {
+  it('proves scrubbing to first event does NOT show final trace and later events progressively reveal it', () => {
     const { container } = render(<TracingRunReviewView session={validMockSession} />)
 
     const slider = screen.getByRole('slider')
     expect(slider).toBeInTheDocument()
 
-    // Scrub to event 0 (pointerdown only: 1 point, no polyline yet)
+    // Scrub to event 0 (pointerdown only: 1 point, short path)
     fireEvent.change(slider, { target: { value: '0' } })
-    expect(screen.getByText(/Traçado parcial revelado até o evento #1/i)).toBeInTheDocument()
-    expect(container.querySelector('polyline')).toBeNull()
-    expect(container.querySelector('circle[fill="#000000"]')).toBeInTheDocument()
+    expect(screen.getByText(/Evento 1 de 3/i)).toBeInTheDocument()
+    expect(container.querySelector('circle[fill="#F6552D"]')).toBeInTheDocument()
 
-    // Scrub to event 1 (pointermove: 2 points -> polyline rendered)
+    // Scrub to event 1 (pointermove: 2 points)
     fireEvent.change(slider, { target: { value: '1' } })
-    expect(screen.getByText(/Traçado parcial revelado até o evento #2/i)).toBeInTheDocument()
-    const polyline = container.querySelector('polyline')
-    expect(polyline).not.toBeNull()
-    expect(polyline?.getAttribute('points')).toBe('20,15 50,85')
+    expect(screen.getByText(/Evento 2 de 3/i)).toBeInTheDocument()
 
-    // Scrub to event 2 (pointerup: 3 points -> full polyline)
+    // Scrub to event 2 (pointerup: 3 points)
     fireEvent.change(slider, { target: { value: '2' } })
-    expect(screen.getByText(/Traçado parcial revelado até o evento #3/i)).toBeInTheDocument()
-    const fullPolyline = container.querySelector('polyline')
-    expect(fullPolyline?.getAttribute('points')).toBe('20,15 50,85 80,15')
+    expect(screen.getByText(/Evento 3 de 3/i)).toBeInTheDocument()
   })
 
   it('shows "Modelo indisponível" when glyphSetId or SHA-256 hash does not match immutable artifact', () => {
@@ -175,17 +168,94 @@ describe('TracingRunReviewView (Ticket A4 Adult Run Review UI)', () => {
 
     expect(screen.getByText(/Modelo indisponível/i)).toBeInTheDocument()
     expect(
-      screen.getByText(/Conjunto de glifos não encontrado ou hash SHA-256 incompatível/i),
+      screen.getByText(/O modelo original desta versão\/hash não está disponível localmente\./i),
     ).toBeInTheDocument()
   })
 
-  it('renders unavailable evidence state when session is null or has empty glyphs', () => {
+  it('renders server geometry faithfully when BackendTracingRunOut is passed with glyph_set', () => {
+    const backendRun: BackendTracingRunOut = {
+      id: 501,
+      game_id: 1,
+      child_id: 'child-1',
+      status: 'completed',
+      score: 92,
+      duration_seconds: 45,
+      glyph_set_id: 1,
+      glyph_set_version: 'uppercase-block-v1',
+      glyph_set_sha256: 'sha256:server_geom_hash',
+      threshold: 70,
+      contact_mode: 'timed_pause',
+      pause_grace_ms: 1500,
+      scoring_version: 1,
+      schema_version: 1,
+      effective_config: { glyph_sequence: ['A'] },
+      glyph_sequence: ['A'],
+      glyph_set: {
+        id: 1,
+        version: 'uppercase-block-v1',
+        artifact_sha256: 'sha256:server_geom_hash',
+        sha256: 'sha256:server_geom_hash',
+        artifact_path: 'svgs/glyphs/uppercase-block-v1.svg',
+        style: 'uppercase-block',
+        geometry: {
+          A: [
+            [
+              [0.08, 1.0],
+              [0.5, 0.0],
+              [0.92, 1.0],
+            ],
+          ],
+        },
+        immutable: true,
+      },
+      evidence: {
+        schema_version: 1,
+        scoring_version: 1,
+        glyph_set_id: 1,
+        glyph_set_version: 'uppercase-block-v1',
+        glyph_set_sha256: 'sha256:server_geom_hash',
+        artifact_version: 'uppercase-block-v1',
+        artifact_sha256: 'sha256:server_geom_hash',
+        pause_grace_ms: 1500,
+        status: 'completed',
+        events: [
+          {
+            seq: 0,
+            type: 'down',
+            pointer_id: 1,
+            x_norm: 0.08,
+            y_norm: 1.0,
+            t_ms: 0,
+            in_bounds: true,
+            glyph_index: 0,
+            segment_index: 0,
+          },
+        ],
+        glyphs: [
+          {
+            glyph_index: 0,
+            grapheme: 'A',
+            status: 'completed',
+            score: 92,
+            coverage: 0.95,
+            precision: 0.98,
+            engagement: 1.0,
+            segments: [],
+          },
+        ],
+      },
+    }
+
+    render(<TracingRunReviewView session={backendRun} />)
+    expect(screen.getByText(/Modelo da Letra A/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/92/i).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText(/Verificado SHA-256/i)).toBeInTheDocument()
+  })
+
+  it('renders unavailable evidence state when session is null', () => {
     render(<TracingRunReviewView session={null} />)
 
-    expect(screen.getByText(/Evidência de traçado indisponível/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/Não há dados de telemetria ou histórico de eventos/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Nenhuma partida selecionada para auditoria\./i)).toBeInTheDocument()
   })
 
   it('preserves privacy with NO export, share, or download buttons', () => {

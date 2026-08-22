@@ -1,5 +1,5 @@
 /**
- * Página de visualização de detalhes de partidas de traçado para adultos (Ticket A4).
+ * Página de visualização de detalhes de partidas de traçado para adultos (Tickets A4 & A5).
  * Rotas: /profissional/partidas/$runId e /pais/partidas/$runId.
  */
 
@@ -8,17 +8,18 @@ import { useNavigate, useParams } from '@tanstack/react-router'
 
 import logo from '@/assets/logo.png'
 import { TracingRunReviewView } from '@/components/tracing/TracingRunReviewView'
-import { fetchTracingRunDetailApi } from '@/lib/tracing/adapter'
+import { fetchTracingRunReplayApi } from '@/lib/tracing/adapter'
 
 export function TracingRunReviewPage() {
   const navigate = useNavigate()
   const params = useParams({ strict: false })
-  const runId = (params as { runId?: string }).runId ?? ''
+  const runIdStr = (params as { runId?: string }).runId ?? ''
+  const runId = Number.parseInt(runIdStr, 10)
 
   const runQuery = useQuery({
     queryKey: ['tracing-run', runId],
-    queryFn: () => fetchTracingRunDetailApi(runId),
-    enabled: Boolean(runId),
+    queryFn: () => fetchTracingRunReplayApi(runId),
+    enabled: !Number.isNaN(runId) && runId > 0,
     retry: false,
   })
 

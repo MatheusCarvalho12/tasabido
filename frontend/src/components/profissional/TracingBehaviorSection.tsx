@@ -1,11 +1,6 @@
 /**
- * Seção de configuração de comportamento de traçado para o formulário do jogo (Ticket A4).
- * Segue o contrato do produto:
- * - Conjuntos de glifos atômicos e imutáveis com ID, versão e hash SHA-256 (nunca letras parciais individuais).
- * - Pré-visualização de amostra puramente para inspeção visual (não altera o conjunto).
- * - Modos de contato com semântica de radio nativa acessível.
- * - Limiar de precisão de 0 a 100 com padrão 70.
- * - Prazos de pausa de 0s a 3s com padrão 1,5s claramente identificado.
+ * Seção de configuração de comportamento de traçado para o formulário do jogo (Tickets A4 & A5).
+ * Integra com a API autoritativa /api/tracing-runs/glyph-sets para obter o catálogo real de conjuntos.
  */
 
 import {
@@ -17,12 +12,18 @@ import {
   SlidersHorizontal,
   Sparkle,
 } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { getGlyphGeometry, IMMUTABLE_GLYPH_CATALOG_KEYS } from '@/lib/tracing/geometry'
+import { fetchGlyphSetsCatalogApi } from '@/lib/tracing/adapter'
+import {
+  createGlyphGeometryFromServer,
+  getGlyphGeometry,
+  IMMUTABLE_GLYPH_CATALOG_KEYS,
+} from '@/lib/tracing/geometry'
 import {
   CANONICAL_GLYPH_SET_ID,
   DEFAULT_TRACING_GAME_CONFIG,
+  type GlyphGeometry,
   type GlyphSetDefinition,
   IMMUTABLE_GLYPH_SETS,
   type TracingGameConfig,
@@ -77,10 +78,43 @@ export function TracingBehaviorSection({
 }: TracingBehaviorSectionProps) {
   // Letra selecionada estritamente para inspeção visual do traçado
   const [inspectionChar, setInspectionChar] = useState<string>('A')
+  const [dynamicSets, setDynamicSets] = useState<GlyphSetDefinition[]>([])
 
-  const availableSets = Object.values(IMMUTABLE_GLYPH_SETS)
-  const defaultSet = IMMUTABLE_GLYPH_SETS[CANONICAL_GLYPH_SET_ID]
-  const currentSet: GlyphSetDefinition = IMMUTABLE_GLYPH_SETS[config.glyphSetId] ??
+  useEffect(() => {
+    void fetchGlyphSetsCatalogApi()
+      .then((res) => {
+        if (res?.items && res.items.length > 0) {
+          const mapped: GlyphSetDefinition[] = res.items.map((item) => ({
+            id: String(item.id),
+            numericId: item.id,
+            name:
+              item.style === 'uppercase-block' || item.style === 'maiusculas-bloco'
+                ? 'Maiúsculas bloco'
+                : item.style,
+            version: item.version,
+            hash: item.artifact_sha256 || item.sha256,
+            description:
+              'Conjunto completo de 39 caracteres maiúsculos em letra de forma (A-Z e acentos pt-BR: Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç, Ü).',
+            glyphCount: Object.keys(item.geometry).length || 39,
+            glyphs: Object.keys(item.geometry),
+            geometry: item.geometry,
+          }))
+          setDynamicSets(mapped)
+        }
+      })
+      .catch(() => {
+        // Fallback silencioso para o catálogo conhecido localmente
+      })
+  }, [])
+
+  const availableSets = dynamicSets.length > 0 ? dynamicSets : Object.values(IMMUTABLE_GLYPH_SETS)
+  const defaultSet = availableSets[0] ?? IMMUTABLE_GLYPH_SETS[CANONICAL_GLYPH_SET_ID]
+  const currentSet: GlyphSetDefinition = availableSets.find(
+    (s) =>
+      s.id === config.glyphSetId ||
+      (s.numericId && s.numericId === config.numericGlyphSetId) ||
+      s.id === String(config.numericGlyphSetId),
+  ) ??
     defaultSet ?? {
       id: CANONICAL_GLYPH_SET_ID,
       name: 'Maiúsculas bloco',
@@ -91,14 +125,13 @@ export function TracingBehaviorSection({
       glyphs: [],
     }
 
-  const handleSetChange = (setId: string) => {
-    const setDef = IMMUTABLE_GLYPH_SETS[setId]
-    if (!setDef) return
+  const handleSetChange = (setDef: GlyphSetDefinition) => {
     onChange({
       ...config,
       glyphSetId: setDef.id,
       glyphSetVersion: setDef.version,
       glyphSetHash: setDef.hash,
+      numericGlyphSetId: setDef.numericId,
     })
   }
 
@@ -123,7 +156,26 @@ export function TracingBehaviorSection({
     })
   }
 
-  const previewGeometry = getGlyphGeometry(inspectionChar)
+  let previewGeometry: GlyphGeometry | null = null
+  if (currentSet.geometry?.[inspectionChar]) {
+    try {
+      previewGeometry = createGlyphGeometryFromServer(
+        inspectionChar,
+        currentSet.geometry[inspectionChar],
+        0.085,
+        config.completionThreshold / 100,
+      )
+    } catch {
+      previewGeometry = null
+    }
+  }
+  if (!previewGeometry) {
+    try {
+      previewGeometry = getGlyphGeometry(inspectionChar)
+    } catch {
+      previewGeometry = null
+    }
+  }
 
   return (
     <section
@@ -158,7 +210,10 @@ export function TracingBehaviorSection({
 
         <div className="grid gap-2 sm:grid-cols-1">
           {availableSets.map((setDef) => {
-            const isSelected = config.glyphSetId === setDef.id
+            const isSelected =
+              config.glyphSetId === setDef.id ||
+              (setDef.numericId && config.numericGlyphSetId === setDef.numericId) ||
+              config.glyphSetId === String(setDef.numericId)
             return (
               <label
                 key={setDef.id}
@@ -175,7 +230,7 @@ export function TracingBehaviorSection({
                   value={setDef.id}
                   checked={isSelected}
                   disabled={disabled}
-                  onChange={() => handleSetChange(setDef.id)}
+                  onChange={() => handleSetChange(setDef)}
                   className="sr-only"
                 />
                 <div className="flex items-center justify-between w-full">
@@ -189,7 +244,7 @@ export function TracingBehaviorSection({
                 <p className="text-xs text-kid-muted font-medium">{setDef.description}</p>
 
                 <div className="flex items-center gap-2 text-[11px] font-mono text-kid-muted pt-1 border-t border-kid-bg/60">
-                  <span className="font-bold">Hash (pré-visualização):</span>
+                  <span className="font-bold">Hash:</span>
                   <span className="truncate">{setDef.hash}</span>
                 </div>
               </label>

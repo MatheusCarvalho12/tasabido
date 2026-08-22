@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as gamesApi from '@/lib/games'
+import * as tracingAdapter from '@/lib/tracing/adapter'
+import type { BackendTracingRunOut } from '@/lib/tracing/types'
 import { TracingGamePage } from './TracingGamePage'
 
 const mockNavigate = vi.fn()
@@ -10,7 +12,7 @@ vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ slug: 'escreva-seu-nome' }),
 }))
 
-describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
+describe('TracingGamePage (Ticket A3 / A5 Authoritative Child Flow & States)', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
@@ -22,6 +24,7 @@ describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
       },
     })
     mockNavigate.mockClear()
+    vi.restoreAllMocks()
 
     if (!Element.prototype.setPointerCapture) {
       Element.prototype.setPointerCapture = vi.fn()
@@ -55,11 +58,11 @@ describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/Ops! Algo deu errado/i)).toBeInTheDocument()
+      expect(screen.getByText(/Ops, precisamos de ajuda!/i)).toBeInTheDocument()
     })
 
-    expect(screen.getByText(/Tentar novamente/i)).toBeInTheDocument()
-    expect(screen.getByText(/Voltar aos jogos/i)).toBeInTheDocument()
+    expect(screen.getByText(/Tentar de novo/i)).toBeInTheDocument()
+    expect(screen.getByText(/Voltar ao início/i)).toBeInTheDocument()
   })
 
   it('renders error state when family has no registered children', async () => {
@@ -108,10 +111,10 @@ describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/Ops! Algo deu errado/i)).toBeInTheDocument()
+      expect(screen.getByText(/Ops, precisamos de ajuda!/i)).toBeInTheDocument()
     })
     expect(screen.getByText(/caracteres não suportados para traçado: 9/i)).toBeInTheDocument()
-    expect(screen.queryByText(/Começar a brincar!/i)).toBeNull()
+    expect(screen.queryByText(/Brincar agora!/i)).toBeNull()
   })
 
   it('renders intro state with real child first name and handles Ü in Müller', async () => {
@@ -145,15 +148,15 @@ describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/Oi, Müller!/i)).toBeInTheDocument()
+      expect(screen.getByText(/Vamos escrever o nome de Müller\?/i)).toBeInTheDocument()
     })
 
     // Glyphs for Müller: M, Ü, L, L, E, R
     expect(screen.getByText('Ü')).toBeInTheDocument()
-    expect(screen.getByText(/Começar a brincar!/i)).toBeInTheDocument()
+    expect(screen.getByText(/Brincar agora!/i)).toBeInTheDocument()
   })
 
-  it('starts gameplay on primary button click and displays qualitative copy only (no numeric score)', async () => {
+  it('starts authoritative run on primary button click and displays qualitative copy only (no numeric score)', async () => {
     vi.spyOn(gamesApi, 'fetchChildrenApi').mockResolvedValue({
       items: [{ id: 'child-1', name: 'Vitória' }],
     })
@@ -177,6 +180,53 @@ describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
       ],
     })
 
+    const mockAuthoritativeRun: BackendTracingRunOut = {
+      id: 101,
+      game_id: 1,
+      child_id: 'child-1',
+      status: 'started',
+      score: null,
+      duration_seconds: null,
+      glyph_set_id: 1,
+      glyph_set_version: 'uppercase-block-v1',
+      glyph_set_sha256: 'sha256:1111',
+      threshold: 70,
+      contact_mode: 'timed_pause',
+      pause_grace_ms: 1500,
+      scoring_version: 1,
+      schema_version: 1,
+      effective_config: { glyph_sequence: ['V', 'I', 'T', 'Ó', 'R', 'I', 'A'] },
+      glyph_sequence: ['V', 'I', 'T', 'Ó', 'R', 'I', 'A'],
+      glyph_set: {
+        id: 1,
+        version: 'uppercase-block-v1',
+        artifact_sha256: 'sha256:1111',
+        sha256: 'sha256:1111',
+        artifact_path: 'svgs/glyphs/uppercase-block-v1.svg',
+        style: 'uppercase-block',
+        geometry: {
+          V: [
+            [
+              [0.1, 0.0],
+              [0.5, 1.0],
+              [0.9, 0.0],
+            ],
+          ],
+          I: [
+            [
+              [0.5, 0.0],
+              [0.5, 1.0],
+            ],
+          ],
+        },
+        immutable: true,
+      },
+    }
+
+    const startSpy = vi
+      .spyOn(tracingAdapter, 'startTracingRunApi')
+      .mockResolvedValueOnce(mockAuthoritativeRun)
+
     render(
       <QueryClientProvider client={queryClient}>
         <TracingGamePage />
@@ -184,17 +234,18 @@ describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/Começar a brincar!/i)).toBeInTheDocument()
+      expect(screen.getByText(/Brincar agora!/i)).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByText(/Começar a brincar!/i))
+    fireEvent.click(screen.getByText(/Brincar agora!/i))
 
-    // Gameplay canvas should now be visible
-    expect(screen.getByTestId('tracing-canvas-container')).toBeInTheDocument()
-    expect(screen.getByText(/Passe o dedinho por cima da letra!/i)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(startSpy).toHaveBeenCalledWith({ child_id: 'child-1' })
+      expect(screen.getByText(/Letra V \(1 de 7\)/i)).toBeInTheDocument()
+    })
 
     // Assert that NO numeric score/percentage is visible to the child
-    expect(screen.queryByText(/%/)).toBeNull()
+    expect(screen.queryByText(/85%/)).toBeNull()
     expect(screen.queryByText(/Score/i)).toBeNull()
     expect(screen.queryByText(/Pontuação/i)).toBeNull()
   })
@@ -230,22 +281,25 @@ describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/Voltar aos jogos/i)).toBeInTheDocument()
+      expect(screen.getByLabelText(/Voltar para o início/i)).toBeInTheDocument()
     })
 
-    fireEvent.click(screen.getByLabelText(/Voltar aos jogos/i))
+    fireEvent.click(screen.getByLabelText(/Voltar para o início/i))
 
     // Abandonment modal should appear with honest copy
-    expect(screen.getByText(/Quer sair do jogo\?/i)).toBeInTheDocument()
-    expect(screen.getByText(/Você poderá jogar de novo quando quiser\./i)).toBeInTheDocument()
+    expect(screen.getByText(/Quer sair da brincadeira\?/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Se você sair agora, seu progresso nesta partida será salvo\./i),
+    ).toBeInTheDocument()
 
     // Click cancel to resume playing
-    fireEvent.click(screen.getByText(/Continuar jogando/i))
-    expect(screen.queryByText(/Quer sair do jogo\?/i)).toBeNull()
+    fireEvent.click(screen.getByText(/Continuar brincando/i))
+    expect(screen.queryByText(/Quer sair da brincadeira\?/i)).toBeNull()
 
     // Reopen and confirm exit
-    fireEvent.click(screen.getByLabelText(/Voltar aos jogos/i))
-    fireEvent.click(screen.getByText(/Sair para os jogos/i))
+    fireEvent.click(screen.getByLabelText(/Voltar para o início/i))
+    const confirmExitBtn = screen.getByRole('button', { name: /Sair agora/i })
+    fireEvent.click(confirmExitBtn)
     expect(mockNavigate).toHaveBeenCalledWith({ to: '/' })
   })
 })

@@ -1,6 +1,6 @@
 /**
- * Área dos pais (rota /pais) - Ticket A4.
- * Protegida por PIN. Inclui visualização e revisão detalhada de partidas de traçado da criança.
+ * Área dos pais (rota /pais) - Tickets A4 & A5.
+ * Protegida por PIN. Inclui visualização e revisão detalhada de partidas de traçado da criança via APIs autorizadas.
  */
 
 import {
@@ -18,21 +18,34 @@ import logo from '@/assets/logo.png'
 import { TracingRunReviewView } from '@/components/tracing/TracingRunReviewView'
 import { Button } from '@/components/ui/button'
 import { lockLandscape, unlockOrientation } from '@/lib/orientation'
-import { fetchTracingRunsListApi } from '@/lib/tracing/adapter'
-import type { TracingSessionEvidenceV1 } from '@/lib/tracing/types'
+import { fetchTracingRunReplayApi, fetchTracingRunsListApi } from '@/lib/tracing/adapter'
+import type { BackendTracingRunOut } from '@/lib/tracing/types'
 import { useParentPinStore } from '@/stores/useParentPinStore'
 
 export function ParentsAreaPage() {
   const navigate = useNavigate()
   const lock = useParentPinStore((s) => s.lock)
-  const [selectedSession, setSelectedSession] = useState<TracingSessionEvidenceV1 | null>(null)
-  const [sessions, setSessions] = useState<TracingSessionEvidenceV1[]>([])
+  const [selectedSession, setSelectedSession] = useState<BackendTracingRunOut | null>(null)
+  const [sessions, setSessions] = useState<BackendTracingRunOut[]>([])
 
   useEffect(() => {
-    void fetchTracingRunsListApi().then((data) => {
-      setSessions(data)
-    })
+    void fetchTracingRunsListApi()
+      .then((data) => {
+        setSessions(data)
+      })
+      .catch(() => {
+        setSessions([])
+      })
   }, [])
+
+  const handleOpenReplay = async (sess: BackendTracingRunOut) => {
+    try {
+      const full = await fetchTracingRunReplayApi(sess.id)
+      setSelectedSession(full)
+    } catch {
+      setSelectedSession(sess)
+    }
+  }
 
   const handleBackToGames = () => {
     lock()
@@ -93,21 +106,18 @@ export function ParentsAreaPage() {
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {sessions.map((sess) => {
-                    const avgScore = Math.round(
-                      (sess.glyphs.reduce((acc, g) => acc + g.finalScore.overall, 0) /
-                        sess.glyphs.length) *
-                        100,
-                    )
-                    const formattedDate = new Date(sess.startedAt).toLocaleDateString('pt-BR', {
-                      day: '2-digit',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
+                    const formattedDate = sess.started_at
+                      ? new Date(sess.started_at).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'Data indisponível'
 
                     return (
                       <div
-                        key={sess.sessionId}
+                        key={sess.id}
                         className="p-5 rounded-3xl bg-white border border-kid-bg shadow-sm flex flex-col justify-between gap-4 hover:shadow-md transition-shadow"
                       >
                         <div className="flex flex-col gap-1.5">
@@ -129,19 +139,21 @@ export function ParentsAreaPage() {
                             )}
                           </div>
 
-                          <h3 className="text-lg font-extrabold text-navy">{sess.childName}</h3>
+                          <h3 className="text-lg font-extrabold text-navy">Partida #{sess.id}</h3>
 
                           <div className="flex items-baseline gap-2 mt-1">
-                            <span className="text-2xl font-black text-blue">{avgScore}%</span>
+                            <span className="text-2xl font-black text-blue">
+                              {sess.score ?? 0}%
+                            </span>
                             <span className="text-xs text-kid-muted font-medium">
-                              desempenho ({sess.glyphs.length} letras)
+                              desempenho ({sess.glyph_sequence?.length ?? 0} letras)
                             </span>
                           </div>
                         </div>
 
                         <button
                           type="button"
-                          onClick={() => setSelectedSession(sess)}
+                          onClick={() => void handleOpenReplay(sess)}
                           className="h-10 w-full rounded-full bg-kid-bg text-navy text-xs font-extrabold hover:bg-blue hover:text-white transition-colors"
                         >
                           Ver avaliação e replay

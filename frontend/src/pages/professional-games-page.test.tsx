@@ -53,6 +53,7 @@ vi.mock('@/lib/tracing/adapter', async (importOriginal) => {
     ...actual,
     fetchLinkedChildrenApi: vi.fn().mockResolvedValue([]),
     fetchTracingRunsListApi: vi.fn().mockResolvedValue([]),
+    fetchTracingRunReplayApi: vi.fn(),
   }
 })
 
@@ -86,7 +87,7 @@ function renderPage() {
   )
 }
 
-describe('ProfessionalGamesPage', () => {
+describe('ProfessionalGamesPage (Tickets A4 & A5 Real APIs)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.fetchMyGames.mockResolvedValue({
@@ -180,7 +181,7 @@ describe('ProfessionalGamesPage', () => {
 
   it('permite abrir o modal de personalização por criança quando há crianças vinculadas', async () => {
     vi.mocked(tracingAdapter.fetchLinkedChildrenApi).mockResolvedValue([
-      { id: 'child-10', name: 'Lucas' },
+      { child_id: 'child-10', name: 'Lucas', assignments: [{ assignment_id: 201, game_id: 1 }] },
     ])
 
     renderPage()

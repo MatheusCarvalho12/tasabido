@@ -877,3 +877,81 @@ export function validateGlyphSequence(chars: string[]): {
     unsupported,
   }
 }
+
+/**
+ * Constrói a geometria de traçado diretamente a partir das coordenadas normalizadas retornadas pelo backend.
+ * Garante paridade exata de geometria com o servidor, eliminando dependência de formas duplicadas estáticas locais.
+ */
+export function createGlyphGeometryFromServer(
+  character: string,
+  rawStrokes: number[][][],
+  toleranceRadius = 0.085,
+  completionThreshold = 0.7,
+): GlyphGeometry {
+  if (!rawStrokes || !Array.isArray(rawStrokes) || rawStrokes.length === 0) {
+    throw new UnsupportedGlyphError(character)
+  }
+
+  const strokes: GlyphStrokeGeometry[] = rawStrokes.map((rawPoints, strokeIdx) => {
+    if (!rawPoints || rawPoints.length === 0) {
+      throw new UnsupportedGlyphError(character)
+    }
+
+    const points: Point[] = rawPoints.map(([x, y]) => ({ x: Number(x), y: Number(y) }))
+    const pathData = `M ${points.map((p) => `${p.x * 100} ${p.y * 100}`).join(' L ')}`
+
+    const samplePoints: Point[] = []
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i]
+      const p2 = points[i + 1]
+      if (p1 && p2) {
+        const segSamples = sampleSegment(p1, p2, 10)
+        samplePoints.push(...segSamples)
+      }
+    }
+    if (points.length === 1 && points[0]) {
+      samplePoints.push(points[0])
+    }
+
+    const length = calculatePolylineLength(points)
+    const firstPoint = points[0] ?? { x: 0, y: 0 }
+    const lastPoint = points[points.length - 1] ?? firstPoint
+
+    return {
+      id: `stroke_${character}_${strokeIdx + 1}`,
+      pathData,
+      samplePoints,
+      length,
+      startPoint: firstPoint,
+      endPoint: lastPoint,
+      order: strokeIdx + 1,
+    }
+  })
+
+  const totalTargetLength = strokes.reduce((acc, s) => acc + s.length, 0)
+
+  return {
+    id: `glyph_${character}`,
+    character,
+    label: `Letra ${character}`,
+    viewBox: '0 0 100 100',
+    toleranceRadius,
+    strokes,
+    totalTargetLength,
+    completionThreshold,
+  }
+}
+
+/**
+ * Converte um dicionário de geometrias retornado pela API do backend em geometrias renderizáveis.
+ */
+export function buildGlyphSetGeometries(
+  geometryMap: Record<string, number[][][]>,
+  toleranceRadius = 0.085,
+): Record<string, GlyphGeometry> {
+  const result: Record<string, GlyphGeometry> = {}
+  for (const [char, strokes] of Object.entries(geometryMap)) {
+    result[char] = createGlyphGeometryFromServer(char, strokes, toleranceRadius)
+  }
+  return result
+}

@@ -1,15 +1,12 @@
 /**
- * Tela do jogo de traçado do nome da criança (Ticket A3).
+ * Tela do jogo de traçado do nome da criança (Tickets A3 & A5).
  * Rota: /jogar/escreva-seu-nome
  *
- * Estados do fluxo infantil:
- * - loading: Carregamento dos dados da criança e do jogo.
- * - error: Falha de rede, criança ausente ou letras não suportadas (sem avançar).
- * - intro: Apresentação da brincadeira, mascote e prévia do nome.
- * - gameplay: Traçado ativo com estados do motor (ready, drawing, valid_touching, grace, reset, invalid).
- * - transition: Transição e celebração entre letras.
- * - completion: Conclusão de todas as letras do nome.
- * - abandonment: Modal de saída/abandono com persistência de evidência parcial.
+ * Fluxo de integração autoritativa A5:
+ * - start: POST /api/tracing-runs/start obtém ID da partida, sequência de glifos, parâmetros efetivos e geometria exata do backend.
+ * - gameplay: Motor de traçado executa com a geometria do servidor e tolerância oficial.
+ * - finalize: POST /api/tracing-runs/{run_id}/finalize envia evidência v1 com chave estável de idempotência.
+ * - retry: Suporte a retentativas com a mesma chave em caso de erro transitório.
  */
 
 import {
@@ -29,37 +26,40 @@ import logo from '@/assets/logo.png'
 import mascote from '@/assets/mascote.png'
 import { RotateHint } from '@/components/jogos/RotateHint'
 import { TracingCanvas, TracingFeedbackBar, TracingGlyphStrip } from '@/components/tracing'
+import { ApiRequestError } from '@/lib/api'
 import { fetchChildrenApi, fetchPublicGamesApi } from '@/lib/games'
 import { lockLandscape, unlockOrientation } from '@/lib/orientation'
-import { submitTracingSession } from '@/lib/tracing/adapter'
+import { finalizeTracingRunApi, startTracingRunApi } from '@/lib/tracing/adapter'
 import { TracingEngine } from '@/lib/tracing/engine'
 import {
+  createGlyphGeometryFromServer,
   getGlyphGeometry,
   normalizeChildFirstName,
   validateGlyphSequence,
 } from '@/lib/tracing/geometry'
 import {
-  CANONICAL_GLYPH_SET_HASH,
-  CANONICAL_GLYPH_SET_ID,
-  CANONICAL_GLYPH_SET_VERSION,
+  type BackendTracingRunOut,
   type GlyphGeometry,
   type TracingEvidenceV1,
   type TracingMode,
+  type TracingNormalizedEvent,
   type TracingScore,
-  type TracingSessionEvidenceV1,
   type TracingState,
+  transformFrontendEvidencesToBackend,
 } from '@/lib/tracing/types'
 
 export type FlowScreenState =
   | 'loading'
   | 'error'
   | 'intro'
+  | 'starting'
   | 'gameplay'
   | 'transition'
+  | 'finalizing'
   | 'completion'
 
-function generateRunSessionId(): string {
-  return `trace_run_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+function generateIdempotencyKey(runId: number): string {
+  return `fin_${runId}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 }
 
 export function TracingGamePage() {
@@ -104,13 +104,16 @@ export function TracingGamePage() {
   const [currentGlyphIndex, setCurrentGlyphIndex] = useState<number>(0)
   const [completedIndices, setCompletedIndices] = useState<Set<number>>(new Set())
   const [showAbandonModal, setShowAbandonModal] = useState<boolean>(false)
-  const [tracingMode] = useState<TracingMode>('timed_pause')
 
-  // Run/Session ID consistente para toda a partida (não muda a cada glifo)
-  const runSessionIdRef = useRef<string>(generateRunSessionId())
+  // Estado da partida autoritativa iniciada no backend (Ticket A5)
+  const [serverGeometries, setServerGeometries] = useState<Record<string, GlyphGeometry>>({})
+  const [effectiveGlyphSequence, setEffectiveGlyphSequence] = useState<string[]>([])
+
+  const authoritativeRunRef = useRef<BackendTracingRunOut | null>(null)
+  const idempotencyKeyRef = useRef<string>('')
   const completedEvidencesRef = useRef<TracingEvidenceV1[]>([])
+  const allEventsRef = useRef<TracingNormalizedEvent[]>([])
   const engineRef = useRef<TracingEngine | null>(null)
-  const sessionStartTimeRef = useRef<number>(Date.now())
 
   // Estado interno do motor atual
   const [engineState, setEngineState] = useState<TracingState>('ready')
@@ -146,7 +149,7 @@ export function TracingGamePage() {
       return
     }
 
-    // Validação estrita: se algum caractere do nome não for suportado, bloqueia no erro
+    // Validação estrita inicial
     const validation = validateGlyphSequence(glyphChars)
     if (!validation.isValid) {
       setErrorMessage(
@@ -174,61 +177,130 @@ export function TracingGamePage() {
     slug,
   ])
 
-  const currentGlyphChar = glyphChars[currentGlyphIndex]
+  const currentGlyphChar =
+    effectiveGlyphSequence[currentGlyphIndex] ?? glyphChars[currentGlyphIndex]
 
   const currentGlyphGeom: GlyphGeometry | null = useMemo(() => {
     if (!currentGlyphChar) return null
+    if (serverGeometries[currentGlyphChar]) {
+      return serverGeometries[currentGlyphChar]
+    }
     try {
       return getGlyphGeometry(currentGlyphChar)
     } catch {
       return null
     }
-  }, [currentGlyphChar])
+  }, [currentGlyphChar, serverGeometries])
 
-  const glyphItems = useMemo(
-    () => glyphChars.map((ch, i) => ({ id: `glyph_char_${ch}_${i}`, ch, index: i })),
-    [glyphChars],
-  )
+  const activeSequence = effectiveGlyphSequence.length > 0 ? effectiveGlyphSequence : glyphChars
 
-  // Dispara conclusão de um glifo
+  // Dispara início autoritativo da partida
+  const handleStartAuthoritativeRun = async () => {
+    if (!child?.id) {
+      setErrorMessage('Criança não identificada.')
+      setScreenState('error')
+      return
+    }
+
+    setScreenState('starting')
+    setErrorMessage('')
+
+    try {
+      const run = await startTracingRunApi({
+        child_id: child.id,
+      })
+
+      authoritativeRunRef.current = run
+      idempotencyKeyRef.current = generateIdempotencyKey(run.id)
+      completedEvidencesRef.current = []
+      allEventsRef.current = []
+      setCurrentGlyphIndex(0)
+      setCompletedIndices(new Set())
+
+      // Constrói geometrias a partir do conjunto retornado pelo servidor
+      const sequence = run.glyph_sequence || glyphChars
+      setEffectiveGlyphSequence(sequence)
+
+      const geomMap: Record<string, GlyphGeometry> = {}
+      if (run.glyph_set?.geometry) {
+        for (const char of sequence) {
+          const rawStrokes = run.glyph_set.geometry[char]
+          if (rawStrokes) {
+            geomMap[char] = createGlyphGeometryFromServer(
+              char,
+              rawStrokes,
+              0.085,
+              (run.threshold ?? 70) / 100,
+            )
+          }
+        }
+      }
+      setServerGeometries(geomMap)
+
+      setScreenState('gameplay')
+    } catch (err) {
+      const status = err instanceof ApiRequestError ? err.status : 500
+      if (status === 422) {
+        setErrorMessage('O nome da criança contém letras não suportadas pelo catálogo de traçado.')
+      } else if (status === 409) {
+        setErrorMessage('Este jogo ainda não está disponível para jogar.')
+      } else {
+        setErrorMessage(
+          'Não foi possível iniciar a partida. Verifique sua conexão e tente novamente.',
+        )
+      }
+      setScreenState('error')
+    }
+  }
+
+  // Dispara conclusão de um glifo e finalização quando atinge o último
   const handleGlyphCompleted = useCallback(
-    (evidence: TracingEvidenceV1) => {
+    async (evidence: TracingEvidenceV1) => {
       completedEvidencesRef.current.push(evidence)
 
       const nextCompleted = new Set(completedIndices)
       nextCompleted.add(currentGlyphIndex)
       setCompletedIndices(nextCompleted)
 
-      const isLastGlyph = currentGlyphIndex >= glyphChars.length - 1
+      const totalGlyphs =
+        effectiveGlyphSequence.length > 0 ? effectiveGlyphSequence.length : glyphChars.length
+      const isLastGlyph = currentGlyphIndex >= totalGlyphs - 1
 
       if (isLastGlyph) {
-        if (!child?.name) {
-          setErrorMessage('Erro de integridade dos dados da criança.')
-          setScreenState('error')
+        const run = authoritativeRunRef.current
+        if (!run) {
+          setScreenState('completion')
           return
         }
 
-        // Encerrou todas as letras do nome! Serializa evidência completa da sessão usando run ID
-        const sessionEvidence: TracingSessionEvidenceV1 = {
-          schemaVersion: 'v1',
-          scoringVersion: 'v1',
-          glyphSetId: CANONICAL_GLYPH_SET_ID,
-          glyphSetVersion: CANONICAL_GLYPH_SET_VERSION,
-          glyphSetHash: CANONICAL_GLYPH_SET_HASH,
-          sessionId: runSessionIdRef.current,
-          childName: child.name,
-          mode: tracingMode,
-          status: 'completed',
-          startedAt: new Date(sessionStartTimeRef.current).toISOString(),
-          completedAt: new Date().toISOString(),
-          durationMs: Date.now() - sessionStartTimeRef.current,
-          glyphs: completedEvidencesRef.current,
-        }
-        void submitTracingSession(sessionEvidence)
+        setScreenState('finalizing')
 
-        setTimeout(() => {
+        const backendEvidence = transformFrontendEvidencesToBackend(
+          allEventsRef.current,
+          completedEvidencesRef.current,
+          activeSequence,
+          {
+            glyphSetId: run.glyph_set_id,
+            glyphSetVersion: run.glyph_set_version || 'uppercase-block-v1',
+            glyphSetSha256: run.glyph_set_sha256 || '',
+            pauseGraceMs: run.pause_grace_ms ?? 1500,
+          },
+          'completed',
+        )
+
+        try {
+          await finalizeTracingRunApi(run.id, {
+            idempotency_key: idempotencyKeyRef.current,
+            evidence: backendEvidence,
+          })
           setScreenState('completion')
-        }, 600)
+        } catch {
+          // Erro ao finalizar: mantém a tela com opção de retentativa honesta usando a mesma chave
+          setErrorMessage(
+            'Não foi possível salvar o resultado no servidor. Toque para tentar novamente.',
+          )
+          setScreenState('error')
+        }
       } else {
         // Celebração da letra e transição para o próximo glifo
         setScreenState('transition')
@@ -239,7 +311,13 @@ export function TracingGamePage() {
         }, 1200)
       }
     },
-    [completedIndices, currentGlyphIndex, glyphChars.length, child?.name, tracingMode],
+    [
+      completedIndices,
+      currentGlyphIndex,
+      effectiveGlyphSequence.length,
+      glyphChars.length,
+      activeSequence,
+    ],
   )
 
   // Inicializa o motor para a letra atual
@@ -249,13 +327,18 @@ export function TracingGamePage() {
         engineRef.current.destroy()
       }
 
+      const run = authoritativeRunRef.current
+      const mode: TracingMode = run?.contact_mode ?? 'timed_pause'
+      const threshold = (run?.threshold ?? 70) / 100
+      const graceMs = run?.pause_grace_ms ?? 1500
+
       const engine = new TracingEngine({
         glyph,
         glyphIndex: index,
-        sessionId: runSessionIdRef.current,
-        mode: tracingMode,
-        completionThreshold: 0.7,
-        graceDurationMs: 1500,
+        sessionId: String(run?.id ?? 'local'),
+        mode,
+        completionThreshold: threshold,
+        graceDurationMs: graceMs,
         onStateChange: (newState) => {
           setEngineState(newState)
         },
@@ -263,7 +346,9 @@ export function TracingGamePage() {
           setEngineScore(newScore)
         },
         onComplete: (evidence: TracingEvidenceV1) => {
-          handleGlyphCompleted(evidence)
+          // Coleta eventos
+          allEventsRef.current.push(...evidence.events)
+          void handleGlyphCompleted(evidence)
         },
         onReset: () => {
           setEngineState('reset')
@@ -274,12 +359,12 @@ export function TracingGamePage() {
       setEngineState(engine.getState())
       setEngineScore(engine.getScore())
     },
-    [tracingMode, handleGlyphCompleted],
+    [handleGlyphCompleted],
   )
 
   // Atualiza motor quando índice do glifo muda no gameplay
   useEffect(() => {
-    if (screenState === 'gameplay' && glyphChars.length > 0) {
+    if (screenState === 'gameplay' && activeSequence.length > 0) {
       if (!currentGlyphGeom) {
         setErrorMessage('Letra atual não é suportada pelo motor de traçado.')
         setScreenState('error')
@@ -292,304 +377,236 @@ export function TracingGamePage() {
         engineRef.current.destroy()
       }
     }
-  }, [screenState, currentGlyphGeom, currentGlyphIndex, glyphChars.length, initEngineForGlyph])
+  }, [screenState, currentGlyphGeom, currentGlyphIndex, activeSequence.length, initEngineForGlyph])
 
-  const handleStartGame = () => {
-    runSessionIdRef.current = generateRunSessionId()
-    sessionStartTimeRef.current = Date.now()
-    completedEvidencesRef.current = []
-    setCurrentGlyphIndex(0)
-    setCompletedIndices(new Set())
-    setScreenState('gameplay')
-  }
-
-  const handleRestartGame = () => {
-    runSessionIdRef.current = generateRunSessionId()
-    sessionStartTimeRef.current = Date.now()
-    completedEvidencesRef.current = []
-    setCurrentGlyphIndex(0)
-    setCompletedIndices(new Set())
-    setScreenState('gameplay')
-  }
-
-  const handleConfirmAbandon = () => {
+  const handleConfirmAbandon = async () => {
     setShowAbandonModal(false)
 
-    if (!child?.name) {
-      void navigate({ to: '/' })
-      return
+    const run = authoritativeRunRef.current
+    if (run) {
+      const currentPartial = engineRef.current ? engineRef.current.abandon() : null
+      if (currentPartial) {
+        completedEvidencesRef.current.push(currentPartial)
+        allEventsRef.current.push(...currentPartial.events)
+      }
+
+      const backendEvidence = transformFrontendEvidencesToBackend(
+        allEventsRef.current,
+        completedEvidencesRef.current,
+        activeSequence,
+        {
+          glyphSetId: run.glyph_set_id,
+          glyphSetVersion: run.glyph_set_version || 'uppercase-block-v1',
+          glyphSetSha256: run.glyph_set_sha256 || '',
+          pauseGraceMs: run.pause_grace_ms ?? 1500,
+        },
+        'abandoned',
+      )
+
+      try {
+        await finalizeTracingRunApi(run.id, {
+          idempotency_key: idempotencyKeyRef.current,
+          evidence: backendEvidence,
+        })
+      } catch {
+        // Silencioso em abandono
+      }
     }
 
-    // Serializa evidência fiel de abandono contendo glifos concluídos e parcial atual
-    const currentPartial = engineRef.current ? engineRef.current.abandon() : null
-    const allGlyphs = currentPartial
-      ? [...completedEvidencesRef.current, currentPartial]
-      : completedEvidencesRef.current
-
-    const sessionEvidence: TracingSessionEvidenceV1 = {
-      schemaVersion: 'v1',
-      scoringVersion: 'v1',
-      glyphSetId: CANONICAL_GLYPH_SET_ID,
-      glyphSetVersion: CANONICAL_GLYPH_SET_VERSION,
-      glyphSetHash: CANONICAL_GLYPH_SET_HASH,
-      sessionId: runSessionIdRef.current,
-      childName: child.name,
-      mode: tracingMode,
-      status: 'abandoned',
-      startedAt: new Date(sessionStartTimeRef.current).toISOString(),
-      completedAt: null,
-      durationMs: Date.now() - sessionStartTimeRef.current,
-      glyphs: allGlyphs,
-    }
-
-    void submitTracingSession(sessionEvidence)
     void navigate({ to: '/' })
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-kid-bg text-navy select-none font-sans overflow-x-hidden">
-      {/* Fallback de rotação quando em modo retrato */}
+    <div className="relative flex h-dvh w-full flex-col overflow-hidden bg-cream font-sans select-none">
       <RotateHint />
 
-      {/* Cabeçalho do jogo com logo, progresso do nome e botão sair */}
-      <header className="flex items-center justify-between px-4 py-3 sm:px-6 md:px-8 bg-kid-card/70 border-b border-kid-bg backdrop-blur-sm">
+      {/* Topo / Header com Mascote e Ações */}
+      <header className="relative z-20 flex h-16 shrink-0 items-center justify-between px-4 sm:px-8">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setShowAbandonModal(true)}
-            aria-label="Voltar aos jogos"
-            className="flex items-center justify-center size-10 rounded-full bg-kid-card text-navy border border-border shadow-sm transition-transform hover:scale-105 active:scale-95"
+            aria-label="Voltar para o início"
+            className="flex size-11 items-center justify-center rounded-2xl bg-white border-2 border-border text-navy shadow-clay-sm transition-transform active:scale-95"
           >
             <ArrowLeft weight="bold" className="size-5" />
           </button>
-          <img src={logo} alt="Tá Sabido" className="h-8 md:h-9" />
+          <img
+            src={logo}
+            alt="Tá Sabido"
+            draggable={false}
+            className="h-8 w-auto select-none sm:h-10"
+          />
         </div>
 
-        {/* Faixa de letras visível durante o gameplay e transição */}
-        {(screenState === 'gameplay' || screenState === 'transition') && (
-          <TracingGlyphStrip
-            glyphs={glyphChars}
-            currentIndex={currentGlyphIndex}
-            completedIndices={completedIndices}
-          />
+        {/* Informações da Partida no Modo Criança (Sem números técnicos) */}
+        {screenState === 'gameplay' && (
+          <div className="flex items-center gap-2 rounded-full bg-white/80 px-4 py-1.5 shadow-sm border border-border">
+            <Sparkle weight="fill" className="size-4 text-yellow" />
+            <span className="text-sm font-extrabold text-navy">
+              Letra {currentGlyphChar} ({currentGlyphIndex + 1} de {activeSequence.length})
+            </span>
+          </div>
         )}
 
-        <div className="w-10" />
+        <div className="flex items-center gap-2">
+          {childDisplayName && (
+            <span className="hidden sm:inline-block rounded-full bg-blue/10 px-3 py-1 text-xs font-black text-blue">
+              {childDisplayName}
+            </span>
+          )}
+        </div>
       </header>
 
-      {/* ------------------------------------------------------------- */}
-      {/* 1. TELA DE CARREGAMENTO (LOADING)                             */}
-      {/* ------------------------------------------------------------- */}
-      {screenState === 'loading' && (
-        <main className="flex flex-1 flex-col items-center justify-center p-6 text-center animate-card-in">
-          <div className="max-w-md w-full bg-kid-card rounded-3xl p-8 shadow-kid-modal border-2 border-kid-bg flex flex-col items-center gap-4">
-            <img
-              src={mascote}
-              alt=""
-              aria-hidden="true"
-              className="w-28 sm:w-36 drop-shadow-lg animate-pulse motion-reduce:animate-none"
-              draggable={false}
-            />
-            <h1 className="text-2xl font-extrabold text-navy">Carregando a brincadeira...</h1>
-            <p className="text-base text-kid-muted font-bold">
-              Preparando as letrinhas do seu nome com carinho!
+      {/* Área Central Interativa */}
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center p-2 sm:p-4 overflow-hidden">
+        {screenState === 'loading' || screenState === 'starting' || screenState === 'finalizing' ? (
+          <div className="flex flex-col items-center gap-4 rounded-3xl bg-white/90 p-8 shadow-clay animate-pulse">
+            <div className="size-14 rounded-full border-4 border-blue border-t-transparent animate-spin" />
+            <p className="text-base font-bold text-navy">
+              {screenState === 'starting'
+                ? 'Preparando as letras com o Sabidinho...'
+                : screenState === 'finalizing'
+                  ? 'Guardando a brincadeira...'
+                  : 'Carregando a brincadeira...'}
             </p>
           </div>
-        </main>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* 2. TELA DE ERRO (ERROR)                                       */}
-      {/* ------------------------------------------------------------- */}
-      {screenState === 'error' && (
-        <main className="flex flex-1 flex-col items-center justify-center p-6 text-center animate-card-in">
-          <div className="max-w-md w-full bg-kid-card rounded-3xl p-8 shadow-kid-modal border-2 border-coral flex flex-col items-center gap-4">
-            <WarningCircle weight="fill" className="size-16 text-coral" />
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-navy">Ops! Algo deu errado</h1>
-            <p className="text-base sm:text-lg text-kid-muted font-bold">{errorMessage}</p>
-
-            <button
-              type="button"
-              onClick={() => {
-                void childrenQuery.refetch()
-                void gamesQuery.refetch()
-              }}
-              className="mt-2 w-full h-14 rounded-full bg-blue text-white text-lg font-black shadow-clay-btn flex items-center justify-center gap-2 hover:bg-blue-dark"
-            >
-              <ArrowCounterClockwise weight="bold" className="size-5" />
-              Tentar novamente
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void navigate({ to: '/' })}
-              className="w-full h-12 rounded-full bg-kid-bg text-navy text-base font-bold hover:bg-border"
-            >
-              Voltar aos jogos
-            </button>
+        ) : screenState === 'error' ? (
+          <div className="flex max-w-md flex-col items-center gap-4 rounded-3xl bg-white p-6 sm:p-8 text-center shadow-clay">
+            <div className="grid size-16 place-items-center rounded-2xl bg-coral/15 text-coral shadow-inner">
+              <WarningCircle weight="bold" className="size-9" />
+            </div>
+            <h2 className="text-xl font-black text-navy">Ops, precisamos de ajuda!</h2>
+            <p className="text-sm font-medium text-kid-muted leading-relaxed">
+              {errorMessage || 'Ocorreu um erro ao carregar as letras do nome.'}
+            </p>
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                type="button"
+                onClick={() => void navigate({ to: '/' })}
+                className="h-11 rounded-full px-5 bg-kid-bg text-navy text-sm font-bold hover:bg-border transition-colors"
+              >
+                Voltar ao início
+              </button>
+              <button
+                type="button"
+                onClick={handleStartAuthoritativeRun}
+                className="h-11 rounded-full px-6 bg-blue text-white text-sm font-bold shadow-clay-btn transition-transform active:scale-95 flex items-center gap-1.5"
+              >
+                <ArrowCounterClockwise weight="bold" className="size-4" />
+                Tentar de novo
+              </button>
+            </div>
           </div>
-        </main>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* 3. TELA DE INTRODUÇÃO (INTRO)                                 */}
-      {/* ------------------------------------------------------------- */}
-      {screenState === 'intro' && (
-        <main className="flex flex-1 flex-col items-center justify-center p-6 text-center animate-card-in">
-          <div className="max-w-md w-full bg-kid-card rounded-3xl p-6 sm:p-8 shadow-kid-modal border-2 border-kid-bg flex flex-col items-center gap-4">
+        ) : screenState === 'intro' ? (
+          <div className="flex max-w-lg flex-col items-center gap-5 rounded-[2.5rem] bg-white p-6 sm:p-8 text-center shadow-clay animate-card-in">
             <img
               src={mascote}
-              alt=""
-              aria-hidden="true"
-              className="w-28 sm:w-36 drop-shadow-lg"
+              alt="Sabidinho"
               draggable={false}
+              className="h-28 w-auto drop-shadow-md animate-bounce-gentle"
             />
-
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-navy leading-tight">
-              Oi, {childDisplayName}!
-            </h1>
-
-            <p className="text-base sm:text-lg text-kid-muted font-bold leading-relaxed">
-              Vamos aprender a traçar as letrinhas do seu nome com o Sabidinho?
-            </p>
-
-            {/* Prévia das letras do nome */}
-            <div className="flex items-center justify-center gap-2 my-2 flex-wrap">
-              {glyphItems.map(({ id, ch }) => (
-                <span
-                  key={id}
-                  className="size-10 sm:size-12 rounded-2xl bg-kid-bg text-navy border-2 border-blue/20 font-black text-xl sm:text-2xl flex items-center justify-center shadow-sm"
-                >
-                  {ch}
-                </span>
-              ))}
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black text-navy">
+                Vamos escrever o nome de {childDisplayName}?
+              </h1>
+              <p className="mt-1 text-sm font-semibold text-kid-muted">
+                Siga as letrinhas na tela com o dedinho e complete seu nome!
+              </p>
             </div>
 
+            <TracingGlyphStrip
+              glyphs={activeSequence}
+              currentIndex={0}
+              completedIndices={new Set()}
+            />
+
             <button
               type="button"
-              onClick={handleStartGame}
-              className="mt-2 w-full h-14 sm:h-16 rounded-full bg-blue text-white text-lg sm:text-xl font-black shadow-clay-btn flex items-center justify-center gap-3 transition-[transform,background-color] hover:-translate-y-0.5 hover:bg-blue-dark active:translate-y-0"
+              onClick={handleStartAuthoritativeRun}
+              className="mt-2 inline-flex h-14 items-center justify-center gap-3 rounded-full bg-turquoise px-8 text-lg font-black text-white shadow-clay-btn transition-transform hover:scale-105 active:scale-95"
             >
               <Play weight="fill" className="size-6" />
-              Começar a brincar!
+              Brincar agora!
             </button>
           </div>
-        </main>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* 4. TELA DE GAMEPLAY ATIVO (READY, DRAWING, GRACE, RESET)      */}
-      {/* ------------------------------------------------------------- */}
-      {screenState === 'gameplay' && engineRef.current && currentGlyphGeom && (
-        <main className="flex flex-1 flex-col items-center justify-center px-4 py-2 gap-3 max-w-4xl mx-auto w-full">
-          {/* Canvas SVG central com captura transparente e traço fiel em preto no branco */}
-          <TracingCanvas
-            engine={engineRef.current}
-            glyph={currentGlyphGeom}
-            state={engineState}
-            score={engineScore}
-            onStateUpdate={() => {
-              if (engineRef.current) {
-                setEngineState(engineRef.current.getState())
-                setEngineScore(engineRef.current.getScore())
-              }
-            }}
-          />
-
-          {/* Barra de feedback qualitativo em pt-BR (NUNCA pontuação numérica) */}
-          <TracingFeedbackBar state={engineState} score={engineScore} className="mt-1" />
-        </main>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* 5. TELA DE TRANSIÇÃO ENTRE LETRAS (TRANSITION)               */}
-      {/* ------------------------------------------------------------- */}
-      {screenState === 'transition' && (
-        <main className="flex flex-1 flex-col items-center justify-center p-6 text-center animate-card-in">
-          <div className="max-w-sm w-full bg-kid-card rounded-3xl p-6 sm:p-8 shadow-kid-modal border-2 border-kid-star flex flex-col items-center gap-3">
-            <div className="size-20 rounded-full bg-kid-star/20 text-kid-star flex items-center justify-center animate-bounce motion-reduce:animate-none">
-              <Star weight="fill" className="size-12" />
+        ) : screenState === 'transition' ? (
+          <div className="flex flex-col items-center gap-4 rounded-3xl bg-white/90 p-8 shadow-clay animate-card-in">
+            <div className="grid size-16 place-items-center rounded-2xl bg-yellow/20 text-yellow shadow-inner">
+              <Star weight="fill" className="size-10 animate-spin-slow" />
             </div>
-
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-navy">
-              Letra {currentGlyphChar} concluída!
-            </h2>
-
-            <p className="text-base sm:text-lg text-kid-muted font-bold">
-              Que lindo! Vamos para a próxima letrinha...
-            </p>
+            <p className="text-2xl font-black text-navy">Muito bem! Que lindo!</p>
+            <p className="text-sm font-bold text-turquoise">Vamos para a próxima letrinha...</p>
           </div>
-        </main>
-      )}
-
-      {/* ------------------------------------------------------------- */}
-      {/* 6. TELA DE CONCLUSÃO DO NOME COMPLETO (COMPLETION)            */}
-      {/* ------------------------------------------------------------- */}
-      {screenState === 'completion' && (
-        <main className="flex flex-1 flex-col items-center justify-center p-6 text-center animate-card-in">
-          <div className="max-w-md w-full bg-kid-card rounded-3xl p-6 sm:p-8 shadow-kid-modal border-4 border-kid-star flex flex-col items-center gap-4">
-            <div className="relative">
-              <img
-                src={mascote}
-                alt=""
-                aria-hidden="true"
-                className="w-32 sm:w-40 drop-shadow-xl animate-bounce motion-reduce:animate-none"
-                draggable={false}
-              />
-              <span className="absolute -top-2 -right-2 bg-kid-star text-navy size-10 rounded-full flex items-center justify-center shadow-md">
-                <Sparkle weight="fill" className="size-6" />
-              </span>
+        ) : screenState === 'completion' ? (
+          <div className="flex max-w-md flex-col items-center gap-5 rounded-[2.5rem] bg-white p-6 sm:p-8 text-center shadow-clay animate-card-in">
+            <div className="grid size-20 place-items-center rounded-full bg-turquoise/20 text-turquoise">
+              <CheckCircle weight="fill" className="size-12" />
+            </div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-black text-navy">
+                Parabéns, você completou!
+              </h2>
+              <p className="mt-1 text-sm font-semibold text-kid-muted">
+                Você escreveu todas as letrinhas do nome {childDisplayName}!
+              </p>
             </div>
 
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-navy leading-tight">
-              Parabéns, {childDisplayName}!
-            </h1>
+            <TracingGlyphStrip
+              glyphs={activeSequence}
+              currentIndex={activeSequence.length - 1}
+              completedIndices={new Set(activeSequence.map((_, i) => i))}
+            />
 
-            <p className="text-lg text-kid-muted font-bold">
-              Você completou todas as letras do seu nome com muito capricho!
-            </p>
-
-            {/* Nome completo destacado com estrelas */}
-            <div className="flex items-center justify-center gap-2 my-2 flex-wrap bg-kid-bg/60 p-3 rounded-2xl border border-kid-star/40">
-              {glyphItems.map(({ id, ch }) => (
-                <div
-                  key={id}
-                  className="relative size-12 rounded-2xl bg-kid-star text-navy font-black text-2xl flex items-center justify-center shadow-md"
-                >
-                  {ch}
-                  <CheckCircle
-                    weight="fill"
-                    className="absolute -top-1.5 -right-1.5 size-4 text-kid-turquoise bg-white rounded-full"
-                  />
-                </div>
-              ))}
+            <div className="flex items-center gap-3 mt-3">
+              <button
+                type="button"
+                onClick={() => void navigate({ to: '/' })}
+                className="h-12 rounded-full px-6 bg-kid-bg text-navy text-sm font-bold hover:bg-border transition-colors"
+              >
+                Início
+              </button>
+              <button
+                type="button"
+                onClick={handleStartAuthoritativeRun}
+                className="h-12 rounded-full px-7 bg-turquoise text-white text-sm font-black shadow-clay-btn transition-transform active:scale-95 flex items-center gap-2"
+              >
+                <ArrowCounterClockwise weight="bold" className="size-4" />
+                Brincar de novo!
+              </button>
             </div>
-
-            {/* Ação primária: Jogar de novo */}
-            <button
-              type="button"
-              onClick={handleRestartGame}
-              className="mt-2 w-full h-14 rounded-full bg-blue text-white text-lg font-black shadow-clay-btn flex items-center justify-center gap-3 transition-[transform,background-color] hover:-translate-y-0.5 hover:bg-blue-dark active:translate-y-0"
-            >
-              <ArrowCounterClockwise weight="bold" className="size-6" />
-              Jogar de novo
-            </button>
-
-            {/* Ação secundária: Voltar aos jogos */}
-            <button
-              type="button"
-              onClick={() => void navigate({ to: '/' })}
-              className="w-full h-12 rounded-full bg-kid-bg text-navy text-base font-bold transition-colors hover:bg-border"
-            >
-              Voltar aos jogos
-            </button>
           </div>
-        </main>
-      )}
+        ) : (
+          /* Modo Gameplay Ativo */
+          <div className="flex size-full max-w-4xl flex-col items-center justify-between gap-2">
+            <TracingGlyphStrip
+              glyphs={activeSequence}
+              currentIndex={currentGlyphIndex}
+              completedIndices={completedIndices}
+            />
 
-      {/* ------------------------------------------------------------- */}
-      {/* 7. MODAL DE ABANDONO / CONFIRMAÇÃO DE SAÍDA                   */}
-      {/* ------------------------------------------------------------- */}
+            <div className="relative flex flex-1 w-full max-w-lg items-center justify-center">
+              {currentGlyphGeom && engineRef.current && (
+                <TracingCanvas
+                  glyph={currentGlyphGeom}
+                  engine={engineRef.current}
+                  state={engineState}
+                  score={engineScore}
+                  className="size-72 sm:size-80"
+                />
+              )}
+            </div>
+
+            <TracingFeedbackBar
+              state={engineState}
+              score={engineScore}
+              className="w-full max-w-md pb-2"
+            />
+          </div>
+        )}
+      </main>
+
+      {/* Modal de Confirmação de Abandono */}
       {showAbandonModal && (
         <div
           role="dialog"
@@ -597,32 +614,29 @@ export function TracingGamePage() {
           aria-labelledby="abandon-title"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-card-in"
         >
-          <div className="max-w-sm w-full bg-kid-card rounded-3xl p-6 sm:p-8 shadow-kid-modal border-2 border-kid-bg flex flex-col items-center text-center gap-4">
-            <WarningCircle weight="fill" className="size-14 text-coral" />
-
-            <h2 id="abandon-title" className="text-2xl font-extrabold text-navy">
-              Quer sair do jogo?
-            </h2>
-
-            <p className="text-base text-kid-muted font-bold leading-relaxed">
-              Você poderá jogar de novo quando quiser.
+          <div className="max-w-sm w-full bg-cream rounded-3xl p-6 text-center shadow-kid-modal border-2 border-kid-bg flex flex-col gap-4">
+            <h3 id="abandon-title" className="text-xl font-extrabold text-navy">
+              Quer sair da brincadeira?
+            </h3>
+            <p className="text-sm text-kid-muted font-medium">
+              Se você sair agora, seu progresso nesta partida será salvo.
             </p>
-
-            <button
-              type="button"
-              onClick={() => setShowAbandonModal(false)}
-              className="w-full h-14 rounded-full bg-blue text-white text-lg font-black shadow-clay-btn flex items-center justify-center transition-colors hover:bg-blue-dark"
-            >
-              Continuar jogando
-            </button>
-
-            <button
-              type="button"
-              onClick={handleConfirmAbandon}
-              className="w-full h-12 rounded-full bg-kid-bg text-navy text-base font-bold hover:bg-border"
-            >
-              Sair para os jogos
-            </button>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAbandonModal(false)}
+                className="h-11 rounded-full px-5 bg-white text-navy border border-border text-sm font-bold hover:bg-kid-bg"
+              >
+                Continuar brincando
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmAbandon()}
+                className="h-11 rounded-full px-6 bg-coral text-white text-sm font-bold shadow-clay-btn hover:bg-coral-dark"
+              >
+                Sair agora
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 /**
- * Modal de configuração e override individual de traçado por atribuição à criança (Ticket A4).
- * Permite ao profissional ajustar parâmetros específicos para uma criança (com herança e reset).
+ * Modal de configuração e override individual de traçado por atribuição à criança (Tickets A4 & A5).
+ * Permite ao profissional ajustar parâmetros específicos para uma atribuição de criança (com herança e reset).
  * Segue o contrato do produto:
  * - Overrides de conjunto de glifos são atômicos e por ID de conjunto (nunca letras individuais).
  * - Modos de contato com semântica de radio nativa acessível.
@@ -15,8 +15,9 @@ import {
   SlidersHorizontal,
   X,
 } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
+import { fetchGlyphSetsCatalogApi } from '@/lib/tracing/adapter'
 import {
   CANONICAL_GLYPH_SET_ID,
   DEFAULT_TRACING_GAME_CONFIG,
@@ -34,6 +35,7 @@ export interface ChildAssignmentOverrideModalProps {
   childName: string
   gameId: number
   gameTitle: string
+  assignmentId?: number
   gameConfig?: TracingGameConfig
   existingOverride?: TracingAssignmentOverride | null
   isOpen: boolean
@@ -53,6 +55,7 @@ export function ChildAssignmentOverrideModal({
   childName,
   gameId,
   gameTitle,
+  assignmentId,
   gameConfig = DEFAULT_TRACING_GAME_CONFIG,
   existingOverride,
   isOpen,
@@ -72,11 +75,51 @@ export function ChildAssignmentOverrideModal({
   const [overrideGrace, setOverrideGrace] = useState<number | null>(
     existingOverride?.graceDurationSeconds ?? null,
   )
+  const [dynamicSets, setDynamicSets] = useState<GlyphSetDefinition[]>([])
+
+  useEffect(() => {
+    if (existingOverride) {
+      setOverrideGlyphSetId(existingOverride.glyphSetId ?? null)
+      setOverrideMode(existingOverride.mode ?? null)
+      setOverrideThreshold(existingOverride.completionThreshold ?? null)
+      setOverrideGrace(existingOverride.graceDurationSeconds ?? null)
+    }
+  }, [existingOverride])
+
+  useEffect(() => {
+    void fetchGlyphSetsCatalogApi()
+      .then((res) => {
+        if (res?.items && res.items.length > 0) {
+          const mapped: GlyphSetDefinition[] = res.items.map((item) => ({
+            id: String(item.id),
+            numericId: item.id,
+            name:
+              item.style === 'uppercase-block' || item.style === 'maiusculas-bloco'
+                ? 'Maiúsculas bloco'
+                : item.style,
+            version: item.version,
+            hash: item.artifact_sha256 || item.sha256,
+            description:
+              'Conjunto completo de 39 caracteres maiúsculos em letra de forma (A-Z e acentos pt-BR: Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç, Ü).',
+            glyphCount: Object.keys(item.geometry).length || 39,
+            glyphs: Object.keys(item.geometry),
+            geometry: item.geometry,
+          }))
+          setDynamicSets(mapped)
+        }
+      })
+      .catch(() => {
+        // Silencioso
+      })
+  }, [])
+
+  const availableSets = dynamicSets.length > 0 ? dynamicSets : Object.values(IMMUTABLE_GLYPH_SETS)
 
   const currentOverride: TracingAssignmentOverride = {
     childId,
     childName,
     gameId,
+    assignmentId: assignmentId ?? existingOverride?.assignmentId,
     glyphSetId: overrideGlyphSetId,
     mode: overrideMode,
     completionThreshold: overrideThreshold,
@@ -84,17 +127,23 @@ export function ChildAssignmentOverrideModal({
   }
 
   const effective = resolveEffectiveTracingSettings(gameConfig, currentOverride)
-  const defaultSet: GlyphSetDefinition = IMMUTABLE_GLYPH_SETS[CANONICAL_GLYPH_SET_ID] ?? {
-    id: CANONICAL_GLYPH_SET_ID,
-    name: 'Maiúsculas bloco',
-    version: '1.0.0',
-    hash: '',
-    description: '',
-    glyphCount: 39,
-    glyphs: [],
-  }
+  const defaultSet: GlyphSetDefinition = availableSets[0] ??
+    IMMUTABLE_GLYPH_SETS[CANONICAL_GLYPH_SET_ID] ?? {
+      id: CANONICAL_GLYPH_SET_ID,
+      name: 'Maiúsculas bloco',
+      version: '1.0.0',
+      hash: '',
+      description: '',
+      glyphCount: 39,
+      glyphs: [],
+    }
   const effectiveGlyphSet: GlyphSetDefinition =
-    IMMUTABLE_GLYPH_SETS[effective.glyphSetId] ?? defaultSet
+    availableSets.find(
+      (s) =>
+        s.id === effective.glyphSetId ||
+        String(s.numericId) === effective.glyphSetId ||
+        s.id === String(gameConfig.numericGlyphSetId),
+    ) ?? defaultSet
 
   if (!isOpen) return null
 
@@ -133,7 +182,7 @@ export function ChildAssignmentOverrideModal({
                 Ajustes de Traçado: {childName}
               </h2>
               <p className="text-xs sm:text-sm text-kid-muted font-medium">
-                Jogo: {gameTitle} (personalização individual por criança)
+                Jogo: {gameTitle} (personalização individual por atribuição)
               </p>
             </div>
           </div>
@@ -209,7 +258,7 @@ export function ChildAssignmentOverrideModal({
             )}
           </div>
           <div className="grid gap-2">
-            {Object.values(IMMUTABLE_GLYPH_SETS).map((setDef) => {
+            {availableSets.map((setDef) => {
               const isSelected = effective.glyphSetId === setDef.id
               return (
                 <label
