@@ -1,7 +1,7 @@
 /**
  * Motor de traçado determinístico e independente de framework (Ticket A1).
  * Implementa máquina de estados estrita/temporizada/livre, trava de ponteiro único,
- * pontuação contínua e esquema serializável de evidência v1.
+ * pontuação v1 multiplicativa, eventos ordenados com seq monotônico e evidência serializável.
  */
 
 import { calculateLiveScore } from './scorer'
@@ -19,10 +19,11 @@ import type {
 } from './types'
 
 const DEFAULT_GRACE_DURATION_MS = 1500
-const DEFAULT_COMPLETION_THRESHOLD = 0.75
+export const DEFAULT_COMPLETION_THRESHOLD = 0.7
 
 export class TracingEngine {
   private readonly glyph: GlyphGeometry
+  private readonly glyphIndex: number
   private readonly mode: TracingMode
   private readonly graceDurationMs: number
   private readonly completionThreshold: number
@@ -33,7 +34,15 @@ export class TracingEngine {
   private isLocked = false
   private activePointerId: number | null = null
   private currentStroke: TracingStroke | null = null
-  private strokes: TracingStroke[] = []
+  private segmentCounter = 0
+  private eventSeq = 0
+
+  /** Traços atualmente válidos no traçado ativo (usados para pontuação). */
+  private activeStrokes: TracingStroke[] = []
+
+  /** Histórico completo e preservado de todos os traços (para auditoria e replay). */
+  private allStrokesHistory: TracingStroke[] = []
+
   private events: TracingNormalizedEvent[] = []
   private scoreHistory: Array<{ timestampMs: number; score: TracingScore }> = []
 
@@ -61,6 +70,7 @@ export class TracingEngine {
 
   constructor(options: TracingEngineOptions) {
     this.glyph = options.glyph
+    this.glyphIndex = options.glyphIndex ?? 0
     this.mode = options.mode ?? 'strict_continuous'
     this.graceDurationMs = options.graceDurationMs ?? DEFAULT_GRACE_DURATION_MS
     this.completionThreshold =
@@ -89,7 +99,14 @@ export class TracingEngine {
   }
 
   public getStrokes(): TracingStroke[] {
-    return this.strokes.map((s) => ({
+    return this.activeStrokes.map((s) => ({
+      ...s,
+      points: [...s.points],
+    }))
+  }
+
+  public getAllStrokesHistory(): TracingStroke[] {
+    return this.allStrokesHistory.map((s) => ({
       ...s,
       points: [...s.points],
     }))
@@ -128,9 +145,16 @@ export class TracingEngine {
     pointerId: number,
     isOutOfBounds: boolean,
   ): void {
+    this.eventSeq++
     const event: TracingNormalizedEvent = {
+      seq: this.eventSeq,
+      glyphIndex: this.glyphIndex,
+      segmentIndex: this.segmentCounter,
       type,
-      point: { x: Math.round(point.x * 1000) / 1000, y: Math.round(point.y * 1000) / 1000 },
+      point: {
+        x: Math.round(point.x * 1000) / 1000,
+        y: Math.round(point.y * 1000) / 1000,
+      },
       timestampMs: Math.round(this.now() - this.startTimeMs),
       pointerId,
       isOutOfBounds,
@@ -148,14 +172,16 @@ export class TracingEngine {
   }
 
   private recalculateScore(): void {
-    const elapsed = this.now() - this.startTimeMs
-    const allStrokes = this.currentStroke ? [...this.strokes, this.currentStroke] : this.strokes
-    const newScore = calculateLiveScore(allStrokes, this.glyph, elapsed)
+    const allStrokes = this.currentStroke
+      ? [...this.activeStrokes, this.currentStroke]
+      : this.activeStrokes
+    const newScore = calculateLiveScore(allStrokes, this.glyph)
 
     const changed =
       newScore.overall !== this.currentScore.overall ||
       newScore.coverage !== this.currentScore.coverage ||
-      newScore.precision !== this.currentScore.precision
+      newScore.precision !== this.currentScore.precision ||
+      newScore.engagement !== this.currentScore.engagement
 
     this.currentScore = newScore
 
@@ -193,6 +219,7 @@ export class TracingEngine {
     }
 
     this.activePointerId = pointerId
+    this.segmentCounter++
 
     // Se estava em contagem de carência (timed_pause), cancela o timer e retoma o traçado
     if (this.state === 'grace') {
@@ -214,11 +241,14 @@ export class TracingEngine {
     }
 
     this.currentStroke = {
-      id: `stroke_${this.strokes.length + 1}_${Math.round(startTimestamp)}`,
+      id: `stroke_${this.glyphIndex}_${this.segmentCounter}_${Math.round(startTimestamp)}`,
+      glyphIndex: this.glyphIndex,
+      segmentIndex: this.segmentCounter,
       points: [firstPoint],
       startedAtMs: Math.round(startTimestamp - this.startTimeMs),
       endedAtMs: null,
       isComplete: false,
+      status: 'active',
       outOfBoundsCount: checkOutOfBounds ? 1 : 0,
     }
 
@@ -263,8 +293,8 @@ export class TracingEngine {
   }
 
   /**
-   * Processa o levantamento do ponteiro (pointerup).
-   * A conclusão SÓ ocorre quando o ponteiro é solto com score >= threshold.
+   * Processa o levantamento voluntário do ponteiro (pointerup).
+   * A conclusão SÓ ocorre quando o ponteiro é solto voluntariamente com score >= threshold.
    */
   public handlePointerUp(x: number, y: number, pointerId: number, isOutOfBounds = false): boolean {
     if (this.isLocked || this.state === 'completed') {
@@ -280,41 +310,46 @@ export class TracingEngine {
 
     this.currentStroke.endedAtMs = Math.round(endTimestamp - this.startTimeMs)
     this.currentStroke.isComplete = true
-    this.strokes.push(this.currentStroke)
+    this.currentStroke.status = 'completed'
+    this.activeStrokes.push(this.currentStroke)
+    this.allStrokesHistory.push(this.currentStroke)
     this.currentStroke = null
     this.activePointerId = null
 
     this.recalculateScore()
     this.recordNormalizedEvent('pointerup', { x, y }, pointerId, checkOutOfBounds)
 
-    // Avaliação de conclusão: score >= threshold ao soltar
+    // Avaliação de conclusão: score >= threshold ao soltar voluntariamente
     if (this.currentScore.overall >= this.completionThreshold) {
       this.completeGlyph()
       return true
     }
 
-    // Levantamento inválido (score < threshold): comportamento depende do modo
+    // Levantamento incompleto (score < threshold): comportamento depende do modo
     if (this.mode === 'strict_continuous') {
-      // No modo estrito contínuo: reseta imediatamente
       this.performStrictReset()
     } else if (this.mode === 'timed_pause') {
-      // No modo temporizado: entra em grace period
       this.enterGracePeriod()
     } else if (this.mode === 'free') {
-      // No modo livre: preserva os traços e aguarda o próximo contato
       this.setState('ready')
     }
 
     return true
   }
 
-  /** Trata interrupção do ponteiro (pointercancel). */
+  /**
+   * Trata interrupção do ponteiro (pointercancel).
+   * Interrupções são SEMPRE não-conclusivas (nunca completam glifo).
+   */
   public handlePointerCancel(pointerId: number): void {
     if (this.activePointerId !== pointerId) return
     this.handleInterruption('pointercancel', pointerId)
   }
 
-  /** Trata perda de captura do ponteiro (lostpointercapture). */
+  /**
+   * Trata perda de captura do ponteiro (lostpointercapture).
+   * Interrupções são SEMPRE não-conclusivas (nunca completam glifo).
+   */
   public handleLostPointerCapture(pointerId: number): void {
     if (this.activePointerId !== pointerId) return
     this.handleInterruption('lostpointercapture', pointerId)
@@ -329,18 +364,16 @@ export class TracingEngine {
     if (this.currentStroke) {
       this.currentStroke.endedAtMs = Math.round(this.now() - this.startTimeMs)
       this.currentStroke.isComplete = true
-      this.strokes.push(this.currentStroke)
+      this.currentStroke.status = 'interrupted'
+      this.allStrokesHistory.push(this.currentStroke)
+      this.activeStrokes.push(this.currentStroke)
       this.currentStroke = null
     }
 
     this.activePointerId = null
     this.recordNormalizedEvent(eventType, { x: 0, y: 0 }, pointerId, false)
 
-    if (this.currentScore.overall >= this.completionThreshold) {
-      this.completeGlyph()
-      return
-    }
-
+    // NUNCA completa o glifo em cancelamento ou perda de captura
     if (this.mode === 'strict_continuous') {
       this.performStrictReset()
     } else if (this.mode === 'timed_pause') {
@@ -361,10 +394,14 @@ export class TracingEngine {
     this.onComplete?.(evidence)
   }
 
-  /** Reseta imediatamente no modo estrito contínuo. */
+  /** Reseta imediatamente no modo estrito contínuo preservando histórico de replay. */
   private performStrictReset(): void {
     this.cancelGraceTimer()
-    this.strokes = []
+    // Marca traços ativos como resetados no histórico antes de limpar o buffer ativo
+    for (let i = 0; i < this.activeStrokes.length; i++) {
+      this.activeStrokes[i].status = 'reset'
+    }
+    this.activeStrokes = []
     this.currentStroke = null
     this.currentScore = {
       coverage: 0,
@@ -378,7 +415,6 @@ export class TracingEngine {
     this.onReset?.()
     this.onScoreChange?.(this.currentScore)
 
-    // Retorna a ready para nova tentativa
     setTimeout(() => {
       if (this.state === 'reset') {
         this.setState('ready')
@@ -435,7 +471,7 @@ export class TracingEngine {
     this.isLocked = false
     this.activePointerId = null
     this.currentStroke = null
-    this.strokes = []
+    this.activeStrokes = []
     this.currentScore = {
       coverage: 0,
       precision: 1,
@@ -453,30 +489,55 @@ export class TracingEngine {
     this.onScoreChange?.(this.currentScore)
   }
 
-  /** Destrói timers e cancela inscrições ativas. */
+  /** Destrói timers ativos. */
   public destroy(): void {
     this.cancelGraceTimer()
   }
 
+  /** Registra abandono explícito e retorna o pacote de evidência parcial. */
+  public abandon(): TracingEvidenceV1 {
+    this.cancelGraceTimer()
+    if (this.currentStroke) {
+      this.currentStroke.endedAtMs = Math.round(this.now() - this.startTimeMs)
+      this.currentStroke.status = 'abandoned'
+      this.allStrokesHistory.push(this.currentStroke)
+      this.currentStroke = null
+    }
+    this.recordNormalizedEvent('abandon', { x: 0, y: 0 }, 0, false)
+    return this.getEvidence('abandoned')
+  }
+
   /** Retorna o objeto de evidência serializável v1. */
-  public getEvidence(): TracingEvidenceV1 {
+  public getEvidence(
+    explicitStatus?: 'completed' | 'abandoned' | 'in_progress',
+  ): TracingEvidenceV1 {
     const endMs = this.completedTimeMs ?? this.now()
     const durationMs = Math.round(endMs - this.startTimeMs)
 
+    let status: 'completed' | 'abandoned' | 'in_progress' = 'in_progress'
+    if (explicitStatus) {
+      status = explicitStatus
+    } else if (this.isLocked && this.state === 'completed') {
+      status = 'completed'
+    }
+
     return {
       schemaVersion: 'v1',
+      scoringVersion: 'v1',
       sessionId: this.sessionId,
       glyphId: this.glyph.id,
       character: this.glyph.character,
+      glyphIndex: this.glyphIndex,
       mode: this.mode,
+      status,
       startedAt: new Date(Date.now() - durationMs).toISOString(),
       completedAt: this.completedTimeMs ? new Date().toISOString() : null,
-      isCompleted: this.isLocked && this.state === 'completed',
+      isCompleted: status === 'completed',
       threshold: this.completionThreshold,
       finalScore: { ...this.currentScore },
       scoreHistory: [...this.scoreHistory],
       events: [...this.events],
-      strokes: this.getStrokes(),
+      strokes: this.getAllStrokesHistory(),
       outOfBoundsCount: this.outOfBoundsCount,
       graceExpirationsCount: this.graceExpirationsCount,
       durationMs,

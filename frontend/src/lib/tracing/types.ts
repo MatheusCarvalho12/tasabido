@@ -59,9 +59,13 @@ export type TracingEventType =
   | 'grace_expire'
   | 'reset'
   | 'complete'
+  | 'abandon'
 
 /** Evento determinístico normalizado no fluxo de evidências. */
 export interface TracingNormalizedEvent {
+  seq: number
+  glyphIndex: number
+  segmentIndex: number
   type: TracingEventType
   point: Point
   timestampMs: number
@@ -71,22 +75,28 @@ export interface TracingNormalizedEvent {
   score: TracingScore
 }
 
-/** Traço individual (do pointerdown ao pointerup/cancel). */
+/** Status do traço individual. */
+export type StrokeStatus = 'active' | 'completed' | 'reset' | 'interrupted' | 'abandoned'
+
+/** Traço individual (do pointerdown ao pointerup/cancel/reset). */
 export interface TracingStroke {
   id: string
+  glyphIndex: number
+  segmentIndex: number
   points: TimestampedPoint[]
   startedAtMs: number
   endedAtMs: number | null
   isComplete: boolean
+  status: StrokeStatus
   outOfBoundsCount: number
 }
 
 /**
  * Interface de pontuação ao vivo:
- * - `coverage`: proporção de pontos do alvo atingidos dentro da tolerância [0, 1].
- * - `precision`: quão próximo o traço permaneceu da linha guia [0, 1].
- * - `engagement`: continuidade temporal e suavidade de movimento [0, 1].
- * - `overall`: pontuação composta ponderada [0, 1].
+ * - `coverage`: proporção de pontos/extensão do alvo atingidos dentro da tolerância [0, 1].
+ * - `precision`: proporção de traço dentro do corredor sobre o total desenhado [0, 1].
+ * - `engagement`: valid trace length / (target length * 0.25), limitado a 1.0 [0, 1].
+ * - `overall`: coverage * precision * engagement [0, 1] (fórmula multiplicativa congelada v1).
  */
 export interface TracingScore {
   coverage: number
@@ -102,6 +112,8 @@ export interface GlyphStrokeGeometry {
   pathData: string
   /** Pontos amostrados ao longo da linha central em coordenadas normalizadas [0, 1]. */
   samplePoints: Point[]
+  /** Comprimento do traço da linha guia no espaço normalizado [0, 1]. */
+  length: number
   /** Ponto de partida sugerido para o traço [0, 1]. */
   startPoint: Point
   /** Ponto final do traço [0, 1]. */
@@ -119,7 +131,9 @@ export interface GlyphGeometry {
   /** Raio de tolerância do corredor em coordenadas normalizadas [0, 1]. */
   toleranceRadius: number
   strokes: GlyphStrokeGeometry[]
-  /** Limiar de pontuação geral para conclusão [0, 1], ex: 0.8. */
+  /** Comprimento total somado de todos os traços do glifo no espaço [0, 1]. */
+  totalTargetLength: number
+  /** Limiar de pontuação geral para conclusão [0, 1], padrão exato 0.70. */
   completionThreshold: number
 }
 
@@ -129,10 +143,13 @@ export interface GlyphGeometry {
  */
 export interface TracingEvidenceV1 {
   schemaVersion: 'v1'
+  scoringVersion: 'v1'
   sessionId: string
   glyphId: string
   character: string
+  glyphIndex: number
   mode: TracingMode
+  status: 'completed' | 'abandoned' | 'in_progress'
   startedAt: string
   completedAt: string | null
   isCompleted: boolean
@@ -147,9 +164,24 @@ export interface TracingEvidenceV1 {
   metadata?: Record<string, unknown>
 }
 
+/** Pacote de evidência de sessão (inclui todos os glifos completados e parciais/abandonados). */
+export interface TracingSessionEvidenceV1 {
+  schemaVersion: 'v1'
+  scoringVersion: 'v1'
+  sessionId: string
+  childName: string
+  mode: TracingMode
+  status: 'completed' | 'abandoned'
+  startedAt: string
+  completedAt: string | null
+  durationMs: number
+  glyphs: TracingEvidenceV1[]
+}
+
 /** Opções de configuração do motor de traçado. */
 export interface TracingEngineOptions {
   glyph: GlyphGeometry
+  glyphIndex?: number
   mode?: TracingMode
   graceDurationMs?: number
   completionThreshold?: number

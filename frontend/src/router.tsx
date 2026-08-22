@@ -4,6 +4,7 @@ import {
   createRouter,
   Outlet,
   redirect,
+  useParams,
 } from '@tanstack/react-router'
 import { PinScreen } from '@/components/jogos/PinScreen'
 import { getStoredUser, getToken } from '@/lib/auth'
@@ -18,6 +19,7 @@ import { CadastroSobrePage } from '@/pages/CadastroSobrePage'
 import { ForgotPasswordStubPage } from '@/pages/ForgotPasswordStubPage'
 import { GameFormPage } from '@/pages/GameFormPage'
 import { HomePage } from '@/pages/HomePage'
+import { JogoEmConstrucaoPage } from '@/pages/JogoEmConstrucaoPage'
 import { JogosPage } from '@/pages/JogosPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { ParentsAreaPage } from '@/pages/ParentsAreaPage'
@@ -147,10 +149,18 @@ const privacyRoute = createRoute({
   component: PrivacyPage,
 })
 
+function JogarRouteDispatcher() {
+  const { slug } = useParams({ from: '/jogar/$slug' })
+  if (slug === 'escreva-seu-nome') {
+    return <TracingGamePage />
+  }
+  return <JogoEmConstrucaoPage />
+}
+
 const jogarRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/jogar/$slug',
-  component: TracingGamePage,
+  component: JogarRouteDispatcher,
 })
 
 const pinRoute = createRoute({

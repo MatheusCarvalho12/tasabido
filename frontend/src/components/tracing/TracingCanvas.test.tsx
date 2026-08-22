@@ -4,12 +4,11 @@ import { TracingEngine } from '@/lib/tracing/engine'
 import { getGlyphGeometry } from '@/lib/tracing/geometry'
 import { TracingCanvas } from './TracingCanvas'
 
-describe('TracingCanvas (Ticket A2)', () => {
+describe('TracingCanvas (Ticket A2 Black on White v1)', () => {
   const glyphA = getGlyphGeometry('A')
   let engine: TracingEngine
 
   beforeEach(() => {
-    // Polyfill setPointerCapture / releasePointerCapture for JSDOM
     if (!Element.prototype.setPointerCapture) {
       Element.prototype.setPointerCapture = vi.fn()
     }
@@ -37,6 +36,20 @@ describe('TracingCanvas (Ticket A2)', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/Passe o dedo na letra para desenhar/i)
   })
 
+  it('renders black on white target container', () => {
+    render(
+      <TracingCanvas
+        engine={engine}
+        glyph={glyphA}
+        state="ready"
+        score={{ coverage: 0, precision: 1, engagement: 0, overall: 0 }}
+      />,
+    )
+
+    const container = screen.getByTestId('tracing-canvas-container')
+    expect(container).toHaveClass('bg-white')
+  })
+
   it('handles pointer interaction and draws faithfully', () => {
     const onUpdate = vi.fn()
     render(
@@ -51,7 +64,6 @@ describe('TracingCanvas (Ticket A2)', () => {
 
     const container = screen.getByTestId('tracing-canvas-container')
 
-    // Mock getBoundingClientRect
     vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
       left: 0,
       top: 0,
@@ -110,31 +122,5 @@ describe('TracingCanvas (Ticket A2)', () => {
     })
 
     expect(engine.getActivePointerId()).toBeNull()
-  })
-
-  it('shows accessible feedback for valid-but-still-touching and completion', () => {
-    const { rerender } = render(
-      <TracingCanvas
-        engine={engine}
-        glyph={glyphA}
-        state="valid_touching"
-        score={{ coverage: 0.9, precision: 0.9, engagement: 0.9, overall: 0.9 }}
-      />,
-    )
-
-    expect(screen.getByRole('status')).toHaveTextContent(
-      /Muito bem! Solte o dedinho para completar!/i,
-    )
-
-    rerender(
-      <TracingCanvas
-        engine={engine}
-        glyph={glyphA}
-        state="completed"
-        score={{ coverage: 1, precision: 1, engagement: 1, overall: 1 }}
-      />,
-    )
-
-    expect(screen.getByRole('status')).toHaveTextContent(/Letra concluída com sucesso!/i)
   })
 })

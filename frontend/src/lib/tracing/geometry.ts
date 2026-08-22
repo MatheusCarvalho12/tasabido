@@ -70,6 +70,15 @@ export function sampleArc(
   return points
 }
 
+/** Calcula o comprimento acumulado de uma lista de pontos. */
+export function calculatePolylineLength(points: Point[]): number {
+  let len = 0
+  for (let i = 0; i < points.length - 1; i++) {
+    len += distance(points[i], points[i + 1])
+  }
+  return len
+}
+
 /** Cria um traço a partir de polilinha em coordenadas de 0 a 100. */
 function createPolylineStroke(
   id: string,
@@ -90,11 +99,13 @@ function createPolylineStroke(
   }
 
   const pathParts = rawPoints.map(([x, y], idx) => `${idx === 0 ? 'M' : 'L'} ${x} ${y}`)
+  const length = calculatePolylineLength(normalizedPoints)
 
   return {
     id,
     pathData: pathParts.join(' '),
     samplePoints,
+    length,
     startPoint: normalizedPoints[0],
     endPoint: normalizedPoints[normalizedPoints.length - 1],
     order,
@@ -123,13 +134,41 @@ function createArcStroke(
     endDeg,
     samples,
   )
+  const length = calculatePolylineLength(samplePoints)
+
   return {
     id,
     pathData,
     samplePoints,
+    length,
     startPoint: samplePoints[0],
     endPoint: samplePoints[samplePoints.length - 1],
     order,
+  }
+}
+
+/** Calcula o comprimento total de todos os traços de um glifo. */
+function computeTotalLength(strokes: GlyphStrokeGeometry[]): number {
+  return strokes.reduce((acc, s) => acc + s.length, 0)
+}
+
+function createGlyph(
+  id: string,
+  character: string,
+  label: string,
+  strokes: GlyphStrokeGeometry[],
+  toleranceRadius = 0.12,
+  completionThreshold = 0.7,
+): GlyphGeometry {
+  return {
+    id,
+    character,
+    label,
+    viewBox: '0 0 100 100',
+    toleranceRadius,
+    completionThreshold,
+    strokes,
+    totalTargetLength: computeTotalLength(strokes),
   }
 }
 
@@ -138,715 +177,495 @@ function createArcStroke(
 // --------------------------------------------------------------------------
 
 const CANONICAL_GLYPHS: Record<string, GlyphGeometry> = {
-  A: {
-    id: 'A',
-    character: 'A',
-    label: 'Letra A',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'a_left',
-        [
-          [50, 15],
-          [20, 85],
-        ],
-        14,
-        1,
-      ),
-      createPolylineStroke(
-        'a_right',
-        [
-          [50, 15],
-          [80, 85],
-        ],
-        14,
-        2,
-      ),
-      createPolylineStroke(
-        'a_cross',
-        [
-          [32, 58],
-          [68, 58],
-        ],
-        10,
-        3,
-      ),
-    ],
-  },
-  B: {
-    id: 'B',
-    character: 'B',
-    label: 'Letra B',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'b_stem',
-        [
-          [25, 15],
-          [25, 85],
-        ],
-        16,
-        1,
-      ),
-      createArcStroke('b_top', 25, 32.5, 35, 17.5, -90, 90, 'M 25 15 C 60 15, 60 50, 25 50', 16, 2),
-      createArcStroke('b_bot', 25, 67.5, 40, 17.5, -90, 90, 'M 25 50 C 65 50, 65 85, 25 85', 16, 3),
-    ],
-  },
-  C: {
-    id: 'C',
-    character: 'C',
-    label: 'Letra C',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createArcStroke('c_arc', 50, 50, 35, 35, -45, -315, 'M 75 25 C 25 10, 15 90, 75 75', 28, 1),
-    ],
-  },
-  D: {
-    id: 'D',
-    character: 'D',
-    label: 'Letra D',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'd_stem',
-        [
-          [25, 15],
-          [25, 85],
-        ],
-        16,
-        1,
-      ),
-      createArcStroke('d_arc', 25, 50, 55, 35, -90, 90, 'M 25 15 C 80 15, 80 85, 25 85', 24, 2),
-    ],
-  },
-  E: {
-    id: 'E',
-    character: 'E',
-    label: 'Letra E',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'e_stem',
-        [
-          [25, 15],
-          [25, 85],
-        ],
-        16,
-        1,
-      ),
-      createPolylineStroke(
-        'e_top',
-        [
-          [25, 15],
-          [75, 15],
-        ],
-        10,
-        2,
-      ),
-      createPolylineStroke(
-        'e_mid',
-        [
-          [25, 50],
-          [65, 50],
-        ],
-        10,
-        3,
-      ),
-      createPolylineStroke(
-        'e_bot',
-        [
-          [25, 85],
-          [75, 85],
-        ],
-        10,
-        4,
-      ),
-    ],
-  },
-  F: {
-    id: 'F',
-    character: 'F',
-    label: 'Letra F',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'f_stem',
-        [
-          [25, 15],
-          [25, 85],
-        ],
-        16,
-        1,
-      ),
-      createPolylineStroke(
-        'f_top',
-        [
-          [25, 15],
-          [75, 15],
-        ],
-        12,
-        2,
-      ),
-      createPolylineStroke(
-        'f_mid',
-        [
-          [25, 50],
-          [65, 50],
-        ],
-        10,
-        3,
-      ),
-    ],
-  },
-  G: {
-    id: 'G',
-    character: 'G',
-    label: 'Letra G',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createArcStroke('g_arc', 50, 50, 35, 35, -45, -270, 'M 75 25 C 20 10, 15 90, 75 85', 26, 1),
-      createPolylineStroke(
-        'g_bar',
-        [
-          [75, 85],
-          [75, 55],
-          [52, 55],
-        ],
-        12,
-        2,
-      ),
-    ],
-  },
-  H: {
-    id: 'H',
-    character: 'H',
-    label: 'Letra H',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'h_left',
-        [
-          [25, 15],
-          [25, 85],
-        ],
-        14,
-        1,
-      ),
-      createPolylineStroke(
-        'h_right',
-        [
-          [75, 15],
-          [75, 85],
-        ],
-        14,
-        2,
-      ),
-      createPolylineStroke(
-        'h_mid',
-        [
-          [25, 50],
-          [75, 50],
-        ],
-        10,
-        3,
-      ),
-    ],
-  },
-  I: {
-    id: 'I',
-    character: 'I',
-    label: 'Letra I',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'i_stem',
-        [
-          [50, 15],
-          [50, 85],
-        ],
-        18,
-        1,
-      ),
-      createPolylineStroke(
-        'i_top',
-        [
-          [30, 15],
-          [70, 15],
-        ],
-        10,
-        2,
-      ),
-      createPolylineStroke(
-        'i_bot',
-        [
-          [30, 85],
-          [70, 85],
-        ],
-        10,
-        3,
-      ),
-    ],
-  },
-  J: {
-    id: 'J',
-    character: 'J',
-    label: 'Letra J',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'j_top',
-        [
-          [35, 15],
-          [75, 15],
-        ],
-        10,
-        1,
-      ),
-      createPolylineStroke(
-        'j_stem',
-        [
-          [60, 15],
-          [60, 65],
-        ],
-        12,
-        2,
-      ),
-      createArcStroke(
-        'j_hook',
-        42.5,
-        65,
-        17.5,
-        17.5,
-        0,
-        180,
-        'M 60 65 C 60 85, 25 85, 25 65',
-        14,
-        3,
-      ),
-    ],
-  },
-  K: {
-    id: 'K',
-    character: 'K',
-    label: 'Letra K',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'k_stem',
-        [
-          [25, 15],
-          [25, 85],
-        ],
-        16,
-        1,
-      ),
-      createPolylineStroke(
-        'k_diag_up',
-        [
-          [75, 15],
-          [25, 50],
-        ],
-        12,
-        2,
-      ),
-      createPolylineStroke(
-        'k_diag_down',
-        [
-          [25, 50],
-          [75, 85],
-        ],
-        12,
-        3,
-      ),
-    ],
-  },
-  L: {
-    id: 'L',
-    character: 'L',
-    label: 'Letra L',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'l_path',
-        [
-          [25, 15],
-          [25, 85],
-          [75, 85],
-        ],
-        22,
-        1,
-      ),
-    ],
-  },
-  M: {
-    id: 'M',
-    character: 'M',
-    label: 'Letra M',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'm_path',
-        [
-          [20, 85],
-          [20, 15],
-          [50, 60],
-          [80, 15],
-          [80, 85],
-        ],
-        32,
-        1,
-      ),
-    ],
-  },
-  N: {
-    id: 'N',
-    character: 'N',
-    label: 'Letra N',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'n_path',
-        [
-          [25, 85],
-          [25, 15],
-          [75, 85],
-          [75, 15],
-        ],
-        28,
-        1,
-      ),
-    ],
-  },
-  O: {
-    id: 'O',
-    character: 'O',
-    label: 'Letra O',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createArcStroke(
-        'o_arc',
-        50,
-        50,
-        35,
-        35,
-        -90,
-        270,
-        'M 50 15 C 90 15, 90 85, 50 85 C 10 85, 10 15, 50 15',
-        36,
-        1,
-      ),
-    ],
-  },
-  P: {
-    id: 'P',
-    character: 'P',
-    label: 'Letra P',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'p_stem',
-        [
-          [25, 15],
-          [25, 85],
-        ],
-        16,
-        1,
-      ),
-      createArcStroke('p_loop', 25, 35, 40, 20, -90, 90, 'M 25 15 C 65 15, 65 55, 25 55', 18, 2),
-    ],
-  },
-  Q: {
-    id: 'Q',
-    character: 'Q',
-    label: 'Letra Q',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createArcStroke(
-        'q_arc',
-        50,
-        45,
-        35,
-        33,
-        -90,
-        270,
-        'M 50 12 C 90 12, 90 78, 50 78 C 10 78, 10 12, 50 12',
-        32,
-        1,
-      ),
-      createPolylineStroke(
-        'q_tail',
-        [
-          [55, 65],
-          [82, 90],
-        ],
-        8,
-        2,
-      ),
-    ],
-  },
-  R: {
-    id: 'R',
-    character: 'R',
-    label: 'Letra R',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'r_stem',
-        [
-          [25, 15],
-          [25, 85],
-        ],
-        16,
-        1,
-      ),
-      createArcStroke('r_loop', 25, 35, 40, 20, -90, 90, 'M 25 15 C 65 15, 65 55, 25 55', 18, 2),
-      createPolylineStroke(
-        'r_leg',
-        [
-          [45, 55],
-          [75, 85],
-        ],
-        10,
-        3,
-      ),
-    ],
-  },
-  S: {
-    id: 'S',
-    character: 'S',
-    label: 'Letra S',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        's_curve',
-        [
-          [75, 25],
-          [40, 15],
-          [25, 35],
-          [75, 65],
-          [60, 85],
-          [25, 75],
-        ],
-        26,
-        1,
-      ),
-    ],
-  },
-  T: {
-    id: 'T',
-    character: 'T',
-    label: 'Letra T',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        't_bar',
-        [
-          [20, 15],
-          [80, 15],
-        ],
-        14,
-        1,
-      ),
-      createPolylineStroke(
-        't_stem',
-        [
-          [50, 15],
-          [50, 85],
-        ],
-        16,
-        2,
-      ),
-    ],
-  },
-  U: {
-    id: 'U',
-    character: 'U',
-    label: 'Letra U',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createArcStroke(
-        'u_path',
-        50,
-        55,
-        28,
-        30,
-        180,
-        0,
-        'M 22 15 L 22 55 C 22 85, 78 85, 78 55 L 78 15',
-        26,
-        1,
-      ),
-    ],
-  },
-  V: {
-    id: 'V',
-    character: 'V',
-    label: 'Letra V',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'v_path',
-        [
-          [20, 15],
-          [50, 85],
-          [80, 15],
-        ],
-        24,
-        1,
-      ),
-    ],
-  },
-  W: {
-    id: 'W',
-    character: 'W',
-    label: 'Letra W',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'w_path',
-        [
-          [15, 15],
-          [32, 85],
-          [50, 35],
-          [68, 85],
-          [85, 15],
-        ],
-        32,
-        1,
-      ),
-    ],
-  },
-  X: {
-    id: 'X',
-    character: 'X',
-    label: 'Letra X',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'x_diag1',
-        [
-          [22, 15],
-          [78, 85],
-        ],
-        16,
-        1,
-      ),
-      createPolylineStroke(
-        'x_diag2',
-        [
-          [78, 15],
-          [22, 85],
-        ],
-        16,
-        2,
-      ),
-    ],
-  },
-  Y: {
-    id: 'Y',
-    character: 'Y',
-    label: 'Letra Y',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'y_v',
-        [
-          [20, 15],
-          [50, 50],
-          [80, 15],
-        ],
-        18,
-        1,
-      ),
-      createPolylineStroke(
-        'y_stem',
-        [
-          [50, 50],
-          [50, 85],
-        ],
-        10,
-        2,
-      ),
-    ],
-  },
-  Z: {
-    id: 'Z',
-    character: 'Z',
-    label: 'Letra Z',
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
-      createPolylineStroke(
-        'z_path',
-        [
-          [22, 15],
-          [78, 15],
-          [22, 85],
-          [78, 85],
-        ],
-        26,
-        1,
-      ),
-    ],
-  },
+  A: createGlyph('A', 'A', 'Letra A', [
+    createPolylineStroke(
+      'a_left',
+      [
+        [50, 15],
+        [20, 85],
+      ],
+      14,
+      1,
+    ),
+    createPolylineStroke(
+      'a_right',
+      [
+        [50, 15],
+        [80, 85],
+      ],
+      14,
+      2,
+    ),
+    createPolylineStroke(
+      'a_cross',
+      [
+        [32, 58],
+        [68, 58],
+      ],
+      10,
+      3,
+    ),
+  ]),
+  B: createGlyph('B', 'B', 'Letra B', [
+    createPolylineStroke(
+      'b_stem',
+      [
+        [25, 15],
+        [25, 85],
+      ],
+      16,
+      1,
+    ),
+    createArcStroke('b_top', 25, 32.5, 35, 17.5, -90, 90, 'M 25 15 C 60 15, 60 50, 25 50', 16, 2),
+    createArcStroke('b_bot', 25, 67.5, 40, 17.5, -90, 90, 'M 25 50 C 65 50, 65 85, 25 85', 16, 3),
+  ]),
+  C: createGlyph('C', 'C', 'Letra C', [
+    createArcStroke('c_arc', 50, 50, 35, 35, -45, -315, 'M 75 25 C 25 10, 15 90, 75 75', 28, 1),
+  ]),
+  D: createGlyph('D', 'D', 'Letra D', [
+    createPolylineStroke(
+      'd_stem',
+      [
+        [25, 15],
+        [25, 85],
+      ],
+      16,
+      1,
+    ),
+    createArcStroke('d_arc', 25, 50, 55, 35, -90, 90, 'M 25 15 C 80 15, 80 85, 25 85', 24, 2),
+  ]),
+  E: createGlyph('E', 'E', 'Letra E', [
+    createPolylineStroke(
+      'e_stem',
+      [
+        [25, 15],
+        [25, 85],
+      ],
+      16,
+      1,
+    ),
+    createPolylineStroke(
+      'e_top',
+      [
+        [25, 15],
+        [75, 15],
+      ],
+      10,
+      2,
+    ),
+    createPolylineStroke(
+      'e_mid',
+      [
+        [25, 50],
+        [65, 50],
+      ],
+      10,
+      3,
+    ),
+    createPolylineStroke(
+      'e_bot',
+      [
+        [25, 85],
+        [75, 85],
+      ],
+      10,
+      4,
+    ),
+  ]),
+  F: createGlyph('F', 'F', 'Letra F', [
+    createPolylineStroke(
+      'f_stem',
+      [
+        [25, 15],
+        [25, 85],
+      ],
+      16,
+      1,
+    ),
+    createPolylineStroke(
+      'f_top',
+      [
+        [25, 15],
+        [75, 15],
+      ],
+      12,
+      2,
+    ),
+    createPolylineStroke(
+      'f_mid',
+      [
+        [25, 50],
+        [65, 50],
+      ],
+      10,
+      3,
+    ),
+  ]),
+  G: createGlyph('G', 'G', 'Letra G', [
+    createArcStroke('g_arc', 50, 50, 35, 35, -45, -270, 'M 75 25 C 20 10, 15 90, 75 85', 26, 1),
+    createPolylineStroke(
+      'g_bar',
+      [
+        [75, 85],
+        [75, 55],
+        [52, 55],
+      ],
+      12,
+      2,
+    ),
+  ]),
+  H: createGlyph('H', 'H', 'Letra H', [
+    createPolylineStroke(
+      'h_left',
+      [
+        [25, 15],
+        [25, 85],
+      ],
+      14,
+      1,
+    ),
+    createPolylineStroke(
+      'h_right',
+      [
+        [75, 15],
+        [75, 85],
+      ],
+      14,
+      2,
+    ),
+    createPolylineStroke(
+      'h_mid',
+      [
+        [25, 50],
+        [75, 50],
+      ],
+      10,
+      3,
+    ),
+  ]),
+  I: createGlyph('I', 'I', 'Letra I', [
+    createPolylineStroke(
+      'i_stem',
+      [
+        [50, 15],
+        [50, 85],
+      ],
+      18,
+      1,
+    ),
+    createPolylineStroke(
+      'i_top',
+      [
+        [30, 15],
+        [70, 15],
+      ],
+      10,
+      2,
+    ),
+    createPolylineStroke(
+      'i_bot',
+      [
+        [30, 85],
+        [70, 85],
+      ],
+      10,
+      3,
+    ),
+  ]),
+  J: createGlyph('J', 'J', 'Letra J', [
+    createPolylineStroke(
+      'j_top',
+      [
+        [35, 15],
+        [75, 15],
+      ],
+      10,
+      1,
+    ),
+    createPolylineStroke(
+      'j_stem',
+      [
+        [60, 15],
+        [60, 65],
+      ],
+      12,
+      2,
+    ),
+    createArcStroke('j_hook', 42.5, 65, 17.5, 17.5, 0, 180, 'M 60 65 C 60 85, 25 85, 25 65', 14, 3),
+  ]),
+  K: createGlyph('K', 'K', 'Letra K', [
+    createPolylineStroke(
+      'k_stem',
+      [
+        [25, 15],
+        [25, 85],
+      ],
+      16,
+      1,
+    ),
+    createPolylineStroke(
+      'k_diag_up',
+      [
+        [75, 15],
+        [25, 50],
+      ],
+      12,
+      2,
+    ),
+    createPolylineStroke(
+      'k_diag_down',
+      [
+        [25, 50],
+        [75, 85],
+      ],
+      12,
+      3,
+    ),
+  ]),
+  L: createGlyph('L', 'L', 'Letra L', [
+    createPolylineStroke(
+      'l_path',
+      [
+        [25, 15],
+        [25, 85],
+        [75, 85],
+      ],
+      22,
+      1,
+    ),
+  ]),
+  M: createGlyph('M', 'M', 'Letra M', [
+    createPolylineStroke(
+      'm_path',
+      [
+        [20, 85],
+        [20, 15],
+        [50, 60],
+        [80, 15],
+        [80, 85],
+      ],
+      32,
+      1,
+    ),
+  ]),
+  N: createGlyph('N', 'N', 'Letra N', [
+    createPolylineStroke(
+      'n_path',
+      [
+        [25, 85],
+        [25, 15],
+        [75, 85],
+        [75, 15],
+      ],
+      28,
+      1,
+    ),
+  ]),
+  O: createGlyph('O', 'O', 'Letra O', [
+    createArcStroke(
+      'o_arc',
+      50,
+      50,
+      35,
+      35,
+      -90,
+      270,
+      'M 50 15 C 90 15, 90 85, 50 85 C 10 85, 10 15, 50 15',
+      36,
+      1,
+    ),
+  ]),
+  P: createGlyph('P', 'P', 'Letra P', [
+    createPolylineStroke(
+      'p_stem',
+      [
+        [25, 15],
+        [25, 85],
+      ],
+      16,
+      1,
+    ),
+    createArcStroke('p_loop', 25, 35, 40, 20, -90, 90, 'M 25 15 C 65 15, 65 55, 25 55', 18, 2),
+  ]),
+  Q: createGlyph('Q', 'Q', 'Letra Q', [
+    createArcStroke(
+      'q_arc',
+      50,
+      45,
+      35,
+      33,
+      -90,
+      270,
+      'M 50 12 C 90 12, 90 78, 50 78 C 10 78, 10 12, 50 12',
+      32,
+      1,
+    ),
+    createPolylineStroke(
+      'q_tail',
+      [
+        [55, 65],
+        [82, 90],
+      ],
+      8,
+      2,
+    ),
+  ]),
+  R: createGlyph('R', 'R', 'Letra R', [
+    createPolylineStroke(
+      'r_stem',
+      [
+        [25, 15],
+        [25, 85],
+      ],
+      16,
+      1,
+    ),
+    createArcStroke('r_loop', 25, 35, 40, 20, -90, 90, 'M 25 15 C 65 15, 65 55, 25 55', 18, 2),
+    createPolylineStroke(
+      'r_leg',
+      [
+        [45, 55],
+        [75, 85],
+      ],
+      10,
+      3,
+    ),
+  ]),
+  S: createGlyph('S', 'S', 'Letra S', [
+    createPolylineStroke(
+      's_curve',
+      [
+        [75, 25],
+        [40, 15],
+        [25, 35],
+        [75, 65],
+        [60, 85],
+        [25, 75],
+      ],
+      26,
+      1,
+    ),
+  ]),
+  T: createGlyph('T', 'T', 'Letra T', [
+    createPolylineStroke(
+      't_bar',
+      [
+        [20, 15],
+        [80, 15],
+      ],
+      14,
+      1,
+    ),
+    createPolylineStroke(
+      't_stem',
+      [
+        [50, 15],
+        [50, 85],
+      ],
+      16,
+      2,
+    ),
+  ]),
+  U: createGlyph('U', 'U', 'Letra U', [
+    createArcStroke(
+      'u_path',
+      50,
+      55,
+      28,
+      30,
+      180,
+      0,
+      'M 22 15 L 22 55 C 22 85, 78 85, 78 55 L 78 15',
+      26,
+      1,
+    ),
+  ]),
+  V: createGlyph('V', 'V', 'Letra V', [
+    createPolylineStroke(
+      'v_path',
+      [
+        [20, 15],
+        [50, 85],
+        [80, 15],
+      ],
+      24,
+      1,
+    ),
+  ]),
+  W: createGlyph('W', 'W', 'Letra W', [
+    createPolylineStroke(
+      'w_path',
+      [
+        [15, 15],
+        [32, 85],
+        [50, 35],
+        [68, 85],
+        [85, 15],
+      ],
+      32,
+      1,
+    ),
+  ]),
+  X: createGlyph('X', 'X', 'Letra X', [
+    createPolylineStroke(
+      'x_diag1',
+      [
+        [22, 15],
+        [78, 85],
+      ],
+      16,
+      1,
+    ),
+    createPolylineStroke(
+      'x_diag2',
+      [
+        [78, 15],
+        [22, 85],
+      ],
+      16,
+      2,
+    ),
+  ]),
+  Y: createGlyph('Y', 'Y', 'Letra Y', [
+    createPolylineStroke(
+      'y_v',
+      [
+        [20, 15],
+        [50, 50],
+        [80, 15],
+      ],
+      18,
+      1,
+    ),
+    createPolylineStroke(
+      'y_stem',
+      [
+        [50, 50],
+        [50, 85],
+      ],
+      10,
+      2,
+    ),
+  ]),
+  Z: createGlyph('Z', 'Z', 'Letra Z', [
+    createPolylineStroke(
+      'z_path',
+      [
+        [22, 15],
+        [78, 15],
+        [22, 85],
+        [78, 85],
+      ],
+      26,
+      1,
+    ),
+  ]),
 }
 
 // --------------------------------------------------------------------------
 // Letras com Acentos do Português Brasileiro (Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç)
 // --------------------------------------------------------------------------
 
-// Acentos reutilizáveis
 const acuteAccent = createPolylineStroke(
   'accent_acute',
   [
@@ -898,125 +717,27 @@ const cedillaMark = createPolylineStroke(
   10,
 )
 
-CANONICAL_GLYPHS.Á = {
-  id: 'Á',
-  character: 'Á',
-  label: 'Letra Á',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.A.strokes, acuteAccent],
-}
-
-CANONICAL_GLYPHS.À = {
-  id: 'À',
-  character: 'À',
-  label: 'Letra À',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.A.strokes, graveAccent],
-}
-
-CANONICAL_GLYPHS.Â = {
-  id: 'Â',
-  character: 'Â',
-  label: 'Letra Â',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.A.strokes, circumflexAccent],
-}
-
-CANONICAL_GLYPHS.Ã = {
-  id: 'Ã',
-  character: 'Ã',
-  label: 'Letra Ã',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.A.strokes, tildeAccent],
-}
-
-CANONICAL_GLYPHS.É = {
-  id: 'É',
-  character: 'É',
-  label: 'Letra É',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.E.strokes, acuteAccent],
-}
-
-CANONICAL_GLYPHS.Ê = {
-  id: 'Ê',
-  character: 'Ê',
-  label: 'Letra Ê',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.E.strokes, circumflexAccent],
-}
-
-CANONICAL_GLYPHS.Í = {
-  id: 'Í',
-  character: 'Í',
-  label: 'Letra Í',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.I.strokes, acuteAccent],
-}
-
-CANONICAL_GLYPHS.Ó = {
-  id: 'Ó',
-  character: 'Ó',
-  label: 'Letra Ó',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.O.strokes, acuteAccent],
-}
-
-CANONICAL_GLYPHS.Ô = {
-  id: 'Ô',
-  character: 'Ô',
-  label: 'Letra Ô',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.O.strokes, circumflexAccent],
-}
-
-CANONICAL_GLYPHS.Õ = {
-  id: 'Õ',
-  character: 'Õ',
-  label: 'Letra Õ',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.O.strokes, tildeAccent],
-}
-
-CANONICAL_GLYPHS.Ú = {
-  id: 'Ú',
-  character: 'Ú',
-  label: 'Letra Ú',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.U.strokes, acuteAccent],
-}
-
-CANONICAL_GLYPHS.Ç = {
-  id: 'Ç',
-  character: 'Ç',
-  label: 'Letra Ç',
-  viewBox: '0 0 100 100',
-  toleranceRadius: 0.12,
-  completionThreshold: 0.75,
-  strokes: [...CANONICAL_GLYPHS.C.strokes, cedillaMark],
-}
+CANONICAL_GLYPHS.Á = createGlyph('Á', 'Á', 'Letra Á', [...CANONICAL_GLYPHS.A.strokes, acuteAccent])
+CANONICAL_GLYPHS.À = createGlyph('À', 'À', 'Letra À', [...CANONICAL_GLYPHS.A.strokes, graveAccent])
+CANONICAL_GLYPHS.Â = createGlyph('Â', 'Â', 'Letra Â', [
+  ...CANONICAL_GLYPHS.A.strokes,
+  circumflexAccent,
+])
+CANONICAL_GLYPHS.Ã = createGlyph('Ã', 'Ã', 'Letra Ã', [...CANONICAL_GLYPHS.A.strokes, tildeAccent])
+CANONICAL_GLYPHS.É = createGlyph('É', 'É', 'Letra É', [...CANONICAL_GLYPHS.E.strokes, acuteAccent])
+CANONICAL_GLYPHS.Ê = createGlyph('Ê', 'Ê', 'Letra Ê', [
+  ...CANONICAL_GLYPHS.E.strokes,
+  circumflexAccent,
+])
+CANONICAL_GLYPHS.Í = createGlyph('Í', 'Í', 'Letra Í', [...CANONICAL_GLYPHS.I.strokes, acuteAccent])
+CANONICAL_GLYPHS.Ó = createGlyph('Ó', 'Ó', 'Letra Ó', [...CANONICAL_GLYPHS.O.strokes, acuteAccent])
+CANONICAL_GLYPHS.Ô = createGlyph('Ô', 'Ô', 'Letra Ô', [
+  ...CANONICAL_GLYPHS.O.strokes,
+  circumflexAccent,
+])
+CANONICAL_GLYPHS.Õ = createGlyph('Õ', 'Õ', 'Letra Õ', [...CANONICAL_GLYPHS.O.strokes, tildeAccent])
+CANONICAL_GLYPHS.Ú = createGlyph('Ú', 'Ú', 'Letra Ú', [...CANONICAL_GLYPHS.U.strokes, acuteAccent])
+CANONICAL_GLYPHS.Ç = createGlyph('Ç', 'Ç', 'Letra Ç', [...CANONICAL_GLYPHS.C.strokes, cedillaMark])
 
 /**
  * Retorna a definição canônica de geometria para um caractere.
@@ -1029,15 +750,12 @@ export function getGlyphGeometry(character: string): GlyphGeometry {
     return CANONICAL_GLYPHS[upper]
   }
 
-  // Fallback seguro: cria uma letra padrão (retângulo/guia) se não estiver mapeada
-  return {
-    id: upper || 'UNKNOWN',
-    character: upper || '?',
-    label: `Letra ${upper || '?'}`,
-    viewBox: '0 0 100 100',
-    toleranceRadius: 0.12,
-    completionThreshold: 0.75,
-    strokes: [
+  // Fallback seguro se não estiver mapeada
+  return createGlyph(
+    upper || 'UNKNOWN',
+    upper || '?',
+    `Letra ${upper || '?'}`,
+    [
       createPolylineStroke(
         'fallback_stroke',
         [
@@ -1051,19 +769,21 @@ export function getGlyphGeometry(character: string): GlyphGeometry {
         1,
       ),
     ],
-  }
+    0.12,
+    0.7,
+  )
 }
 
 /**
- * Normaliza o nome da criança para a sequência de glifos individuais:
+ * Normaliza o primeiro nome da criança para a sequência de glifos individuais:
  * - Pega o primeiro nome
  * - Converte para MAIÚSCULAS
  * - Mantém acentos válidos (Á, É, Í, Ó, Ú, Â, Ê, Ô, Ã, Õ, Ç, À)
- * - Remove caracteres numéricos ou pontuação inválida
+ * - Retorna array vazio se não houver caracteres válidos (sem inventar nomes fictícios).
  */
 export function normalizeChildFirstName(fullName: string | null | undefined): string[] {
   if (!fullName || typeof fullName !== 'string') {
-    return ['A', 'N', 'A']
+    return []
   }
 
   const firstName = fullName.trim().split(/\s+/)[0] ?? ''
@@ -1072,5 +792,5 @@ export function normalizeChildFirstName(fullName: string | null | undefined): st
   // Filtra apenas letras A-Z e acentos válidos em português
   const validChars = upper.split('').filter((ch) => /^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]$/.test(ch))
 
-  return validChars.length > 0 ? validChars : ['A', 'N', 'A']
+  return validChars
 }

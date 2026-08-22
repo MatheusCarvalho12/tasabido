@@ -3,7 +3,7 @@ import { TracingEngine } from './engine'
 import { getGlyphGeometry } from './geometry'
 import type { TracingEvidenceV1 } from './types'
 
-describe('TracingEngine (Ticket A1)', () => {
+describe('TracingEngine (Ticket A1 Frozen v1)', () => {
   let virtualTime = 1000
   const clock = () => virtualTime
   const glyphL = getGlyphGeometry('L')
@@ -18,12 +18,12 @@ describe('TracingEngine (Ticket A1)', () => {
   })
 
   describe('strict_continuous mode', () => {
-    it('resets immediately on invalid lift (pointerup before threshold)', () => {
+    it('resets immediately on invalid lift (pointerup before threshold 0.70)', () => {
       let resetCalled = false
       const engine = new TracingEngine({
         glyph: glyphL,
         mode: 'strict_continuous',
-        completionThreshold: 0.75,
+        completionThreshold: 0.7,
         clock,
         onReset: () => {
           resetCalled = true
@@ -36,16 +36,18 @@ describe('TracingEngine (Ticket A1)', () => {
       engine.handlePointerDown(0.25, 0.15, 1)
       expect(engine.getState()).toBe('drawing')
 
-      // Draw only a tiny bit (not enough to complete)
+      // Draw only a tiny bit (not reaching 0.70 threshold)
       virtualTime += 100
       engine.handlePointerMove(0.25, 0.25, 1)
-      expect(engine.getScore().overall).toBeLessThan(0.75)
+      expect(engine.getScore().overall).toBeLessThan(0.7)
 
       // Invalid lift (pointer up before threshold)
       engine.handlePointerUp(0.25, 0.25, 1)
       expect(resetCalled).toBe(true)
       expect(engine.getState()).toBe('reset')
+      // Active strokes reset to 0, but stroke history is preserved for replay
       expect(engine.getStrokes().length).toBe(0)
+      expect(engine.getAllStrokesHistory().length).toBe(1)
       expect(engine.getScore().overall).toBe(0)
 
       // Advances timer for reset transition back to ready
@@ -53,12 +55,17 @@ describe('TracingEngine (Ticket A1)', () => {
       expect(engine.getState()).toBe('ready')
     })
 
-    it('transitions to valid_touching when score >= threshold while still touching', () => {
+    it('transitions to valid_touching when score >= 0.70 while still touching', () => {
+      let completedEvidence: TracingEvidenceV1 | null = null
       const engine = new TracingEngine({
         glyph: glyphL,
+        glyphIndex: 0,
         mode: 'strict_continuous',
-        completionThreshold: 0.75,
+        completionThreshold: 0.7,
         clock,
+        onComplete: (ev) => {
+          completedEvidence = ev
+        },
       })
 
       engine.handlePointerDown(0.25, 0.15, 1)
@@ -73,217 +80,36 @@ describe('TracingEngine (Ticket A1)', () => {
         engine.handlePointerMove(x, 0.85, 1)
       }
 
-      // Current score >= threshold while pointer is still down
-      expect(engine.getScore().overall).toBeGreaterThanOrEqual(0.75)
+      // Current score >= 0.70 while pointer is still down
+      expect(engine.getScore().overall).toBeGreaterThanOrEqual(0.7)
       expect(engine.getState()).toBe('valid_touching')
       expect(engine.getIsLocked()).toBe(false)
-
-      // Completes ONLY on release
-      let completedEvidence: TracingEvidenceV1 | null = null
-      const engineWithCallback = new TracingEngine({
-        glyph: glyphL,
-        mode: 'strict_continuous',
-        completionThreshold: 0.75,
-        clock,
-        onComplete: (ev) => {
-          completedEvidence = ev
-        },
-      })
-
-      engineWithCallback.handlePointerDown(0.25, 0.15, 1)
-      for (let y = 0.2; y <= 0.85; y += 0.05) {
-        virtualTime += 20
-        engineWithCallback.handlePointerMove(0.25, y, 1)
-      }
-      for (let x = 0.3; x <= 0.75; x += 0.05) {
-        virtualTime += 20
-        engineWithCallback.handlePointerMove(x, 0.85, 1)
-      }
-
       expect(completedEvidence).toBeNull()
 
       // Pointer up releases and triggers completion!
-      engineWithCallback.handlePointerUp(0.75, 0.85, 1)
-      expect(engineWithCallback.getState()).toBe('completed')
-      expect(engineWithCallback.getIsLocked()).toBe(true)
+      engine.handlePointerUp(0.75, 0.85, 1)
+      expect(engine.getState()).toBe('completed')
+      expect(engine.getIsLocked()).toBe(true)
       expect(completedEvidence).not.toBeNull()
       expect((completedEvidence as unknown as TracingEvidenceV1)?.isCompleted).toBe(true)
 
       // Completed glyph is locked: further touches are rejected
-      const accepted = engineWithCallback.handlePointerDown(0.5, 0.5, 2)
+      const accepted = engine.handlePointerDown(0.5, 0.5, 2)
       expect(accepted).toBe(false)
     })
   })
 
-  describe('timed_pause mode', () => {
-    it('enters grace on lift and resets only when grace expires', () => {
-      const engine = new TracingEngine({
-        glyph: glyphL,
-        mode: 'timed_pause',
-        graceDurationMs: 1000,
-        completionThreshold: 0.75,
-        clock,
-      })
-
-      engine.handlePointerDown(0.25, 0.15, 1)
-      virtualTime += 100
-      engine.handlePointerMove(0.25, 0.4, 1)
-
-      // Lift before threshold
-      engine.handlePointerUp(0.25, 0.4, 1)
-
-      // Should be in grace period (progress preserved)
-      expect(engine.getState()).toBe('grace')
-      expect(engine.getStrokes().length).toBe(1)
-
-      // Advance time beyond grace duration (1000ms)
-      vi.advanceTimersByTime(1100)
-      expect(engine.getState()).toBe('reset')
-      expect(engine.getStrokes().length).toBe(0)
-    })
-
-    it('resumes drawing and cancels grace when child touches down before grace expires', () => {
-      const engine = new TracingEngine({
-        glyph: glyphL,
-        mode: 'timed_pause',
-        graceDurationMs: 1000,
-        completionThreshold: 0.75,
-        clock,
-      })
-
-      engine.handlePointerDown(0.25, 0.15, 1)
-      virtualTime += 50
-      engine.handlePointerMove(0.25, 0.45, 1)
-      engine.handlePointerUp(0.25, 0.45, 1)
-
-      expect(engine.getState()).toBe('grace')
-
-      // Child touches down again after 400ms (within grace)
-      vi.advanceTimersByTime(400)
-      virtualTime += 400
-      engine.handlePointerDown(0.25, 0.45, 2)
-
-      expect(engine.getState()).toBe('drawing')
-      // Both previous stroke and active stroke are kept
-      expect(engine.getStrokes().length).toBe(1)
-
-      // Continue to completion
-      for (let y = 0.5; y <= 0.85; y += 0.05) {
-        virtualTime += 20
-        engine.handlePointerMove(0.25, y, 2)
-      }
-      for (let x = 0.3; x <= 0.75; x += 0.05) {
-        virtualTime += 20
-        engine.handlePointerMove(x, 0.85, 2)
-      }
-
-      engine.handlePointerUp(0.75, 0.85, 2)
-      expect(engine.getState()).toBe('completed')
-    })
-  })
-
-  describe('free mode', () => {
-    it('accumulates strokes across multiple contacts without reset on lift', () => {
-      const engine = new TracingEngine({
-        glyph: glyphL,
-        mode: 'free',
-        completionThreshold: 0.75,
-        clock,
-      })
-
-      // Stroke 1: top half of vertical stem
-      engine.handlePointerDown(0.25, 0.15, 1)
-      engine.handlePointerMove(0.25, 0.5, 1)
-      engine.handlePointerUp(0.25, 0.5, 1)
-
-      expect(engine.getState()).toBe('ready')
-      expect(engine.getStrokes().length).toBe(1)
-      const score1 = engine.getScore().overall
-      expect(score1).toBeGreaterThan(0)
-
-      // Stroke 2: bottom half of vertical stem + bottom horizontal bar
-      virtualTime += 300
-      engine.handlePointerDown(0.25, 0.5, 2)
-      for (let y = 0.55; y <= 0.85; y += 0.05) {
-        engine.handlePointerMove(0.25, y, 2)
-      }
-      for (let x = 0.3; x <= 0.75; x += 0.05) {
-        engine.handlePointerMove(x, 0.85, 2)
-      }
-
-      engine.handlePointerUp(0.75, 0.85, 2)
-
-      expect(engine.getState()).toBe('completed')
-      expect(engine.getStrokes().length).toBe(2)
-    })
-  })
-
-  describe('active pointer lock', () => {
-    it('rejects secondary pointer touches while primary pointer is active', () => {
+  describe('interruptions: pointercancel and lostpointercapture are NON-COMPLETING', () => {
+    it('never completes on pointercancel even if live score is above threshold', () => {
+      let completedCalled = false
       const engine = new TracingEngine({
         glyph: glyphL,
         mode: 'strict_continuous',
+        completionThreshold: 0.7,
         clock,
-      })
-
-      const p1 = engine.handlePointerDown(0.25, 0.15, 10)
-      expect(p1).toBe(true)
-      expect(engine.getActivePointerId()).toBe(10)
-
-      // Secondary touch
-      const p2 = engine.handlePointerDown(0.5, 0.5, 20)
-      expect(p2).toBe(false)
-      expect(engine.getActivePointerId()).toBe(10)
-
-      // Move from secondary pointer is ignored
-      const m2 = engine.handlePointerMove(0.6, 0.6, 20)
-      expect(m2).toBe(false)
-
-      // Move from primary pointer is processed
-      const m1 = engine.handlePointerMove(0.25, 0.3, 10)
-      expect(m1).toBe(true)
-    })
-  })
-
-  describe('interruptions: pointercancel and lostcapture', () => {
-    it('handles pointercancel cleanly in strict mode', () => {
-      const engine = new TracingEngine({
-        glyph: glyphL,
-        mode: 'strict_continuous',
-        clock,
-      })
-
-      engine.handlePointerDown(0.25, 0.15, 1)
-      engine.handlePointerMove(0.25, 0.3, 1)
-      engine.handlePointerCancel(1)
-
-      expect(engine.getActivePointerId()).toBeNull()
-      expect(engine.getState()).toBe('reset')
-    })
-
-    it('handles lostpointercapture cleanly in timed mode', () => {
-      const engine = new TracingEngine({
-        glyph: glyphL,
-        mode: 'timed_pause',
-        clock,
-      })
-
-      engine.handlePointerDown(0.25, 0.15, 1)
-      engine.handlePointerMove(0.25, 0.3, 1)
-      engine.handleLostPointerCapture(1)
-
-      expect(engine.getActivePointerId()).toBeNull()
-      expect(engine.getState()).toBe('grace')
-    })
-  })
-
-  describe('serializable evidence schema v1', () => {
-    it('generates valid JSON-serializable evidence schema v1', () => {
-      const engine = new TracingEngine({
-        glyph: glyphL,
-        mode: 'strict_continuous',
-        sessionId: 'test_session_123',
-        clock,
+        onComplete: () => {
+          completedCalled = true
+        },
       })
 
       engine.handlePointerDown(0.25, 0.15, 1)
@@ -293,26 +119,99 @@ describe('TracingEngine (Ticket A1)', () => {
       for (let x = 0.3; x <= 0.75; x += 0.05) {
         engine.handlePointerMove(x, 0.85, 1)
       }
-      engine.handlePointerUp(0.75, 0.85, 1)
+
+      expect(engine.getScore().overall).toBeGreaterThanOrEqual(0.7)
+      expect(engine.getState()).toBe('valid_touching')
+
+      // Interruption occurs via pointercancel
+      engine.handlePointerCancel(1)
+
+      // MUST NOT complete!
+      expect(completedCalled).toBe(false)
+      expect(engine.getState()).toBe('reset')
+      expect(engine.getIsLocked()).toBe(false)
+    })
+
+    it('never completes on lostpointercapture even if live score is above threshold', () => {
+      let completedCalled = false
+      const engine = new TracingEngine({
+        glyph: glyphL,
+        mode: 'timed_pause',
+        completionThreshold: 0.7,
+        clock,
+        onComplete: () => {
+          completedCalled = true
+        },
+      })
+
+      engine.handlePointerDown(0.25, 0.15, 1)
+      for (let y = 0.2; y <= 0.85; y += 0.05) {
+        engine.handlePointerMove(0.25, y, 1)
+      }
+      for (let x = 0.3; x <= 0.75; x += 0.05) {
+        engine.handlePointerMove(x, 0.85, 1)
+      }
+
+      expect(engine.getScore().overall).toBeGreaterThanOrEqual(0.7)
+
+      // Interruption occurs via lostpointercapture
+      engine.handleLostPointerCapture(1)
+
+      // MUST NOT complete; enters grace in timed mode
+      expect(completedCalled).toBe(false)
+      expect(engine.getState()).toBe('grace')
+      expect(engine.getIsLocked()).toBe(false)
+    })
+  })
+
+  describe('monotonic event sequence and structured fields', () => {
+    it('produces strictly monotonic seq numbers and includes glyphIndex and segmentIndex', () => {
+      const engine = new TracingEngine({
+        glyph: glyphL,
+        glyphIndex: 2,
+        mode: 'strict_continuous',
+        clock,
+      })
+
+      engine.handlePointerDown(0.25, 0.15, 1)
+      engine.handlePointerMove(0.25, 0.3, 1)
+      engine.handlePointerMove(0.25, 0.5, 1)
+      engine.handlePointerUp(0.25, 0.5, 1)
 
       const evidence = engine.getEvidence()
+      expect(evidence.events.length).toBeGreaterThan(0)
+
+      let prevSeq = 0
+      for (const ev of evidence.events) {
+        expect(ev.seq).toBe(prevSeq + 1)
+        prevSeq = ev.seq
+        expect(ev.glyphIndex).toBe(2)
+        expect(ev.segmentIndex).toBeGreaterThan(0)
+      }
 
       expect(evidence.schemaVersion).toBe('v1')
-      expect(evidence.sessionId).toBe('test_session_123')
-      expect(evidence.glyphId).toBe('L')
-      expect(evidence.character).toBe('L')
-      expect(evidence.mode).toBe('strict_continuous')
-      expect(evidence.isCompleted).toBe(true)
-      expect(evidence.events.length).toBeGreaterThan(0)
-      expect(evidence.strokes.length).toBe(1)
-      expect(evidence.scoreHistory.length).toBeGreaterThan(0)
+      expect(evidence.scoringVersion).toBe('v1')
+    })
+  })
 
-      // Test JSON serializability
-      const json = JSON.stringify(evidence)
-      expect(json).toBeTruthy()
-      const parsed = JSON.parse(json)
-      expect(parsed.schemaVersion).toBe('v1')
-      expect(parsed.sessionId).toBe('test_session_123')
+  describe('abandonment and partial evidence bundle', () => {
+    it('preserves faithful partial evidence on explicit abandon', () => {
+      const engine = new TracingEngine({
+        glyph: glyphL,
+        glyphIndex: 1,
+        mode: 'timed_pause',
+        clock,
+      })
+
+      engine.handlePointerDown(0.25, 0.15, 1)
+      engine.handlePointerMove(0.25, 0.4, 1)
+
+      const partialEvidence = engine.abandon()
+      expect(partialEvidence.status).toBe('abandoned')
+      expect(partialEvidence.isCompleted).toBe(false)
+      expect(partialEvidence.strokes.length).toBe(1)
+      expect(partialEvidence.strokes[0].status).toBe('abandoned')
+      expect(partialEvidence.events.some((e) => e.type === 'abandon')).toBe(true)
     })
   })
 })

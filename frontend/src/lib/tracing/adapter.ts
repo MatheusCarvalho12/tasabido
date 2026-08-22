@@ -1,32 +1,25 @@
 /**
  * Adaptadores de API e persistência de sessões de traçado (Ticket A1/A3).
- * Integra com POST /api/game-runs sem inventar endpoints não existentes no backend.
+ * Limite tipado para integração A5 (/api/tracing-runs).
+ * Não envia scores não-autoritativos para POST /api/game-runs legado.
  */
 
-import { ApiRequestError, apiClient } from '@/lib/api'
-import { getToken } from '@/lib/auth'
-import type { TracingEvidenceV1 } from './types'
-
-export interface SubmitRunPayload {
-  game_id: number
-  child_id: string
-  score: number // 0-100 (arredondado)
-  duration_seconds: number
-}
-
-export interface GameRunResult {
-  id: number
-  game_id: number
-  child_id: string
-  score: number
-  duration_seconds: number
-  created_at: string
-}
+import type { TracingEvidenceV1, TracingSessionEvidenceV1 } from './types'
 
 const EVIDENCE_STORAGE_KEY = 'tasabido.tracing_evidences'
+const SESSION_EVIDENCE_STORAGE_KEY = 'tasabido.tracing_sessions'
+
+export interface TracingRunSubmissionResult {
+  success: boolean
+  mode: 'local_boundary'
+  sessionId: string
+  status: 'completed' | 'abandoned'
+  synced: boolean
+  message: string
+}
 
 /**
- * Salva a evidência localmente no sessionStorage/localStorage para auditoria e futura integração A5.
+ * Salva a evidência de um glifo individual no sessionStorage.
  */
 export function saveLocalEvidence(evidence: TracingEvidenceV1): void {
   try {
@@ -40,11 +33,25 @@ export function saveLocalEvidence(evidence: TracingEvidenceV1): void {
 }
 
 /**
- * Recupera todas as evidências salvas na sessão atual.
+ * Salva o pacote completo da sessão (completa ou abandonada) no sessionStorage/localStorage.
  */
-export function getLocalEvidences(): TracingEvidenceV1[] {
+export function saveSessionEvidence(session: TracingSessionEvidenceV1): void {
   try {
-    const raw = window.sessionStorage.getItem(EVIDENCE_STORAGE_KEY)
+    const existing = window.sessionStorage.getItem(SESSION_EVIDENCE_STORAGE_KEY)
+    const list: TracingSessionEvidenceV1[] = existing ? JSON.parse(existing) : []
+    list.push(session)
+    window.sessionStorage.setItem(SESSION_EVIDENCE_STORAGE_KEY, JSON.stringify(list))
+  } catch {
+    // Silencioso
+  }
+}
+
+/**
+ * Recupera todas as sessões salvas.
+ */
+export function getLocalSessionEvidences(): TracingSessionEvidenceV1[] {
+  try {
+    const raw = window.sessionStorage.getItem(SESSION_EVIDENCE_STORAGE_KEY)
     return raw ? JSON.parse(raw) : []
   } catch {
     return []
@@ -52,35 +59,21 @@ export function getLocalEvidences(): TracingEvidenceV1[] {
 }
 
 /**
- * Envia uma partida concluída para o endpoint oficial POST /api/game-runs.
- * Se o jogo não estiver publicado ou falhar na rede, não quebra a experiência da criança.
+ * Limite de adaptador tipado para submissão de traçado.
+ * A5 integrará /api/tracing-runs autoritativo. Até lá, retém evidências locais fielmente.
  */
-export async function submitTracingRunApi(
-  payload: SubmitRunPayload,
-): Promise<GameRunResult | null> {
-  const token = getToken()
-  if (!token) {
-    return null
-  }
+export async function submitTracingSession(
+  session: TracingSessionEvidenceV1,
+): Promise<TracingRunSubmissionResult> {
+  saveSessionEvidence(session)
 
-  try {
-    const { data, error, response } = (await apiClient.post<GameRunResult, { detail?: string }>({
-      url: '/api/game-runs',
-      body: payload,
-      headers: { Authorization: `Bearer ${token}` },
-    })) as { data?: GameRunResult; error?: { detail?: string }; response: Response }
-
-    if (!data) {
-      throw new ApiRequestError(
-        response.status,
-        error?.detail ?? 'Não foi possível registrar a partida.',
-      )
-    }
-
-    return data
-  } catch (err) {
-    // Log silencioso para resiliência: a criança nunca deve ver tela de erro por falha de telemetria
-    console.warn('[TracingAdapter] Falha ao enviar game-run para backend:', err)
-    return null
+  return {
+    success: true,
+    mode: 'local_boundary',
+    sessionId: session.sessionId,
+    status: session.status,
+    synced: false,
+    message:
+      'Evidência de traçado serializada e armazenada localmente. Aguardando integração do ticket A5.',
   }
 }

@@ -4,14 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as gamesApi from '@/lib/games'
 import { TracingGamePage } from './TracingGamePage'
 
-// Mock tanstack router useParams and useNavigate
 const mockNavigate = vi.fn()
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate,
   useParams: () => ({ slug: 'escreva-seu-nome' }),
 }))
 
-describe('TracingGamePage (Ticket A3)', () => {
+describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
@@ -30,9 +29,57 @@ describe('TracingGamePage (Ticket A3)', () => {
     if (!Element.prototype.releasePointerCapture) {
       Element.prototype.releasePointerCapture = vi.fn()
     }
+  })
 
+  it('renders loading state while queries are pending', () => {
+    vi.spyOn(gamesApi, 'fetchChildrenApi').mockReturnValue(new Promise(() => {}))
+    vi.spyOn(gamesApi, 'fetchPublicGamesApi').mockReturnValue(new Promise(() => {}))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TracingGamePage />
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByText(/Carregando a brincadeira\.\.\./i)).toBeInTheDocument()
+  })
+
+  it('renders error state with retry and back buttons on API failure', async () => {
+    vi.spyOn(gamesApi, 'fetchChildrenApi').mockRejectedValue(new Error('Network error'))
+    vi.spyOn(gamesApi, 'fetchPublicGamesApi').mockResolvedValue({ items: [] })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TracingGamePage />
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Ops! Algo deu errado/i)).toBeInTheDocument()
+    })
+
+    expect(screen.getByText(/Tentar novamente/i)).toBeInTheDocument()
+    expect(screen.getByText(/Voltar aos jogos/i)).toBeInTheDocument()
+  })
+
+  it('renders error state when family has no registered children', async () => {
+    vi.spyOn(gamesApi, 'fetchChildrenApi').mockResolvedValue({ items: [] })
+    vi.spyOn(gamesApi, 'fetchPublicGamesApi').mockResolvedValue({ items: [] })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TracingGamePage />
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Nenhuma criança encontrada/i)).toBeInTheDocument()
+    })
+  })
+
+  it('renders intro state with real child first name and uppercase accented letters', async () => {
     vi.spyOn(gamesApi, 'fetchChildrenApi').mockResolvedValue({
-      items: [{ id: 'child-123', name: 'João Pedro' }],
+      items: [{ id: 'child-1', name: 'João Pedro' }],
     })
     vi.spyOn(gamesApi, 'fetchPublicGamesApi').mockResolvedValue({
       items: [
@@ -40,8 +87,8 @@ describe('TracingGamePage (Ticket A3)', () => {
           id: 1,
           slug: 'escreva-seu-nome',
           titulo: 'Escreva seu nome',
-          descricao: 'Treine a escrita do seu nome',
-          tutorial: 'Passe o dedo nas letras',
+          descricao: 'Treine a escrita',
+          tutorial: 'Passe o dedo',
           categoria: 'escrita',
           visibilidade: 'public',
           status: 'published',
@@ -53,16 +100,13 @@ describe('TracingGamePage (Ticket A3)', () => {
         },
       ],
     })
-  })
 
-  it('renders intro state with child first name and uppercase accented letters', async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <TracingGamePage />
       </QueryClientProvider>,
     )
 
-    // Greeting should use first name "João"
     await waitFor(() => {
       expect(screen.getByText(/Oi, João!/i)).toBeInTheDocument()
     })
@@ -73,6 +117,29 @@ describe('TracingGamePage (Ticket A3)', () => {
   })
 
   it('starts gameplay on primary button click and displays qualitative copy only (no numeric score)', async () => {
+    vi.spyOn(gamesApi, 'fetchChildrenApi').mockResolvedValue({
+      items: [{ id: 'child-1', name: 'Vitória' }],
+    })
+    vi.spyOn(gamesApi, 'fetchPublicGamesApi').mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          slug: 'escreva-seu-nome',
+          titulo: 'Escreva seu nome',
+          descricao: 'Treine a escrita',
+          tutorial: 'Passe o dedo',
+          categoria: 'escrita',
+          visibilidade: 'public',
+          status: 'published',
+          svg_url: null,
+          thumb_url: null,
+          banner_url: null,
+          cores: ['#48c3c7'],
+          stats: { partidas: 10, tempo_medio_min: 5, score_medio: 90 },
+        },
+      ],
+    })
+
     render(
       <QueryClientProvider client={queryClient}>
         <TracingGamePage />
@@ -87,8 +154,6 @@ describe('TracingGamePage (Ticket A3)', () => {
 
     // Gameplay canvas should now be visible
     expect(screen.getByTestId('tracing-canvas-container')).toBeInTheDocument()
-
-    // Qualitative Brazilian Portuguese copy
     expect(screen.getByText(/Passe o dedinho por cima da letra!/i)).toBeInTheDocument()
 
     // Assert that NO numeric score/percentage is visible to the child
@@ -97,7 +162,30 @@ describe('TracingGamePage (Ticket A3)', () => {
     expect(screen.queryByText(/Pontuação/i)).toBeNull()
   })
 
-  it('opens abandonment modal when back button is pressed and handles cancel/exit', async () => {
+  it('opens abandonment modal on back button click and handles cancel/confirm with honest copy', async () => {
+    vi.spyOn(gamesApi, 'fetchChildrenApi').mockResolvedValue({
+      items: [{ id: 'child-1', name: 'André' }],
+    })
+    vi.spyOn(gamesApi, 'fetchPublicGamesApi').mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          slug: 'escreva-seu-nome',
+          titulo: 'Escreva seu nome',
+          descricao: 'Treine a escrita',
+          tutorial: 'Passe o dedo',
+          categoria: 'escrita',
+          visibilidade: 'public',
+          status: 'published',
+          svg_url: null,
+          thumb_url: null,
+          banner_url: null,
+          cores: ['#48c3c7'],
+          stats: { partidas: 10, tempo_medio_min: 5, score_medio: 90 },
+        },
+      ],
+    })
+
     render(
       <QueryClientProvider client={queryClient}>
         <TracingGamePage />
@@ -110,12 +198,11 @@ describe('TracingGamePage (Ticket A3)', () => {
 
     fireEvent.click(screen.getByLabelText(/Voltar aos jogos/i))
 
-    // Abandonment modal should appear
+    // Abandonment modal should appear with honest copy
     expect(screen.getByText(/Quer sair do jogo\?/i)).toBeInTheDocument()
-    expect(screen.getByText(/Continuar jogando/i)).toBeInTheDocument()
-    expect(screen.getByText(/Sair para os jogos/i)).toBeInTheDocument()
+    expect(screen.getByText(/Você poderá jogar de novo quando quiser\./i)).toBeInTheDocument()
 
-    // Click cancel
+    // Click cancel to resume playing
     fireEvent.click(screen.getByText(/Continuar jogando/i))
     expect(screen.queryByText(/Quer sair do jogo\?/i)).toBeNull()
 

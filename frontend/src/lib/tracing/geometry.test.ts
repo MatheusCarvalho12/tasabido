@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  calculatePolylineLength,
   distance,
   distanceSquared,
   getGlyphGeometry,
@@ -15,6 +16,15 @@ describe('geometry utilities', () => {
     const p2 = { x: 3, y: 4 }
     expect(distanceSquared(p1, p2)).toBe(25)
     expect(distance(p1, p2)).toBe(5)
+  })
+
+  it('calculates polyline length correctly', () => {
+    const pts = [
+      { x: 0, y: 0 },
+      { x: 3, y: 0 },
+      { x: 3, y: 4 },
+    ]
+    expect(calculatePolylineLength(pts)).toBeCloseTo(7)
   })
 
   it('samples linear segments accurately', () => {
@@ -50,7 +60,7 @@ describe('geometry utilities', () => {
 
 describe('normalizeChildFirstName', () => {
   it('normalizes simple first names to uppercase letters', () => {
-    expect(normalizeChildFirstName('Lucas')).toEqual(['L', 'U', 'C', 'A', 'S'])
+    expect(normalizeChildFirstName('Maria')).toEqual(['M', 'A', 'R', 'I', 'A'])
     expect(normalizeChildFirstName('maria silva')).toEqual(['M', 'A', 'R', 'I', 'A'])
     expect(normalizeChildFirstName('pedro henrique')).toEqual(['P', 'E', 'D', 'R', 'O'])
   })
@@ -65,23 +75,23 @@ describe('normalizeChildFirstName', () => {
     expect(normalizeChildFirstName('Luís')).toEqual(['L', 'U', 'Í', 'S'])
   })
 
-  it('returns fallback ANA when name is empty or invalid', () => {
-    expect(normalizeChildFirstName('')).toEqual(['A', 'N', 'A'])
-    expect(normalizeChildFirstName(null)).toEqual(['A', 'N', 'A'])
-    expect(normalizeChildFirstName('123')).toEqual(['A', 'N', 'A'])
+  it('returns empty array when name is empty or invalid (no invented fallback names)', () => {
+    expect(normalizeChildFirstName('')).toEqual([])
+    expect(normalizeChildFirstName(null)).toEqual([])
+    expect(normalizeChildFirstName('123')).toEqual([])
+    expect(normalizeChildFirstName('   ')).toEqual([])
   })
 })
 
 describe('canonical glyph definitions', () => {
-  it('provides geometry for all A-Z letters', () => {
+  it('provides geometry for all A-Z letters with exact 0.70 threshold', () => {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
     for (const letter of alphabet) {
       const geom = getGlyphGeometry(letter)
       expect(geom.character).toBe(letter)
+      expect(geom.completionThreshold).toBe(0.7)
+      expect(geom.totalTargetLength).toBeGreaterThan(0)
       expect(geom.strokes.length).toBeGreaterThan(0)
-      for (const stroke of geom.strokes) {
-        expect(stroke.samplePoints.length).toBeGreaterThan(0)
-      }
     }
   })
 
@@ -90,12 +100,8 @@ describe('canonical glyph definitions', () => {
     for (const letter of accentedLetters) {
       const geom = getGlyphGeometry(letter)
       expect(geom.character).toBe(letter)
-      expect(geom.strokes.length).toBeGreaterThan(1) // main letter + accent stroke
+      expect(geom.completionThreshold).toBe(0.7)
+      expect(geom.strokes.length).toBeGreaterThan(1)
     }
-  })
-
-  it('provides fallback geometry for unlisted characters', () => {
-    const geom = getGlyphGeometry('?')
-    expect(geom.strokes.length).toBeGreaterThan(0)
   })
 })

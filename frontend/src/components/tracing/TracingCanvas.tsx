@@ -1,9 +1,8 @@
 /**
  * Componente principal do canvas de traçado (Ticket A2).
- * Renderiza alvo SVG, overlay transparente com captura de ponteiro (setPointerCapture),
- * sobreposição de traço fiel (sem suavização artificial), coordenadas normalizadas,
- * tratamento de out-of-bounds, pointercancel/lostcapture, cues de acessibilidade não-cor
- * e suporte a movimento reduzido.
+ * Renderiza alvo SVG e traçado fiel em preto no branco (black on white v1).
+ * Captura transparente de ponteiro com touch-action: none e setPointerCapture,
+ * sem suavização artificial, com cues de acessibilidade não-cor e motion reduzido.
  */
 
 import {
@@ -66,11 +65,10 @@ export function TracingCanvas({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      // Garante captura do ponteiro para receber eventos mesmo fora do elemento
       try {
         e.currentTarget.setPointerCapture(e.pointerId)
       } catch {
-        // Fallback caso setPointerCapture falhe
+        // Fallback caso setPointerCapture falhe no ambiente
       }
 
       const { x, y, isOutOfBounds } = normalizeCoords(e.clientX, e.clientY)
@@ -90,7 +88,7 @@ export function TracingCanvas({
       const { x, y, isOutOfBounds } = normalizeCoords(e.clientX, e.clientY)
       const accepted = engine.handlePointerMove(x, y, e.pointerId, isOutOfBounds)
       if (accepted) {
-        // Renderização fiel: adiciona ponto cru sem suavização artificial (raw coordinates)
+        // Renderização fiel: adiciona ponto cru sem suavização artificial
         setActiveStrokePoints((prev) => [...prev, { x, y }])
         onStateUpdate?.()
       }
@@ -168,19 +166,16 @@ export function TracingCanvas({
     statusIcon = <HandTap className="size-5 shrink-0" weight="bold" />
   }
 
-  // Cor do traço conforme o estado
-  const strokeColor =
-    state === 'completed' || state === 'valid_touching'
-      ? '#ffb800' // Kid gold / star
-      : '#0d79f0' // Clay blue
+  // Contrato v1 aceito: Alvo, guia e traço da criança são estritamente PRETO NO BRANCO
+  const strokeColor = '#000000'
 
   return (
     <div className={`relative flex flex-col items-center select-none ${className}`}>
-      {/* Alvo SVG centralizado com proporção 1:1 */}
+      {/* Alvo SVG em fundo branco puro (black on white) */}
       <div
         ref={containerRef}
         data-testid="tracing-canvas-container"
-        className="relative size-[280px] sm:size-[340px] md:size-[380px] max-w-full aspect-square rounded-3xl bg-kid-card shadow-kid-card border-4 border-kid-bg flex items-center justify-center overflow-hidden touch-none"
+        className="relative size-[280px] sm:size-[340px] md:size-[380px] max-w-full aspect-square rounded-3xl bg-white shadow-kid-card border-4 border-kid-bg flex items-center justify-center overflow-hidden touch-none"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -193,43 +188,42 @@ export function TracingCanvas({
           preserveAspectRatio="xMidYMid meet"
           aria-label={`Guia de traçado da ${glyph.label}`}
         >
-          {/* Camada 1: Corredor de tolerância / Guia de fundo (Pastel Kid Turquoise) */}
+          {/* Camada 1: Corredor de tolerância (guia cinza claro no fundo branco) */}
           {glyph.strokes.map((s) => (
             <path
               key={`guide_bg_${s.id}`}
               d={s.pathData}
               fill="none"
-              stroke="#e2f2f2"
+              stroke="#f0f0f0"
               strokeWidth="20"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="transition-colors duration-200"
             />
           ))}
 
-          {/* Camada 2: Linha central tracejada de referência */}
+          {/* Camada 2: Linha central de referência da letra (preto tracejado) */}
           {glyph.strokes.map((s) => (
             <path
               key={`guide_center_${s.id}`}
               d={s.pathData}
               fill="none"
-              stroke="#04a4ab"
-              strokeWidth="3.5"
+              stroke="#000000"
+              strokeWidth="3"
               strokeDasharray="4 4"
               strokeLinecap="round"
               strokeLinejoin="round"
-              opacity="0.6"
+              opacity="0.4"
             />
           ))}
 
-          {/* Camada 3: Ponto de início de cada traço (círculo com seta/número) */}
+          {/* Camada 3: Ponto de início de cada traço (círculo preto com número/indicador) */}
           {glyph.strokes.map((s, idx) => (
             <g key={`start_dot_${s.id}`}>
               <circle
                 cx={s.startPoint.x * 100}
                 cy={s.startPoint.y * 100}
                 r="4.5"
-                fill="#f6552d"
+                fill="#000000"
                 stroke="#ffffff"
                 strokeWidth="1.5"
               />
@@ -249,7 +243,7 @@ export function TracingCanvas({
             </g>
           ))}
 
-          {/* Camada 4: Traços completados anteriores (Renderização Fiel e Crua - SEM suavização) */}
+          {/* Camada 4: Traços completados anteriores da criança (Fiel e Cru - Preto no Branco) */}
           {completedStrokes.map((s) => (
             <polyline
               key={s.id}
@@ -263,7 +257,7 @@ export function TracingCanvas({
             />
           ))}
 
-          {/* Camada 5: Traço ativo sendo desenhado no momento (Raw Points) */}
+          {/* Camada 5: Traço ativo sendo desenhado no momento pela criança (Raw Points - Preto) */}
           {activeStrokePoints.length > 0 && (
             <polyline
               points={activeStrokePoints.map((p) => `${p.x * 100},${p.y * 100}`).join(' ')}
@@ -275,15 +269,15 @@ export function TracingCanvas({
             />
           )}
 
-          {/* Overlay visual quando glifo está travado/concluído */}
+          {/* Anel de celebração quando concluído */}
           {state === 'completed' && (
             <circle
               cx="50"
               cy="50"
               r="46"
               fill="none"
-              stroke="#ffb800"
-              strokeWidth="2.5"
+              stroke="#000000"
+              strokeWidth="2"
               strokeDasharray="6 4"
               className="animate-spin-slow motion-reduce:animate-none"
             />
@@ -298,7 +292,7 @@ export function TracingCanvas({
 
         {/* Indicador de trava se concluído */}
         {state === 'completed' && (
-          <div className="absolute top-3 right-3 bg-kid-star text-navy size-8 rounded-full flex items-center justify-center shadow-clay-sm">
+          <div className="absolute top-3 right-3 bg-navy text-white size-8 rounded-full flex items-center justify-center shadow-clay-sm">
             <LockSimple weight="bold" className="size-5" />
           </div>
         )}
@@ -310,7 +304,7 @@ export function TracingCanvas({
         aria-live="polite"
         className="mt-3 flex items-center gap-2 px-4 py-1.5 rounded-full bg-kid-card border border-kid-bg text-navy text-sm md:text-base font-bold shadow-clay-sm transition-all"
       >
-        <span className="text-kid-turquoise">{statusIcon}</span>
+        <span className="text-navy">{statusIcon}</span>
         <span>{statusText}</span>
       </div>
     </div>

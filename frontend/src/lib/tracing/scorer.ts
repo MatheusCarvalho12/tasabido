@@ -1,10 +1,29 @@
 /**
- * Mecanismo de pontuação ao vivo do traçado (coverage, precision, engagement).
- * A pontuação pode subir ou descer em tempo real conforme a criança desenha.
+ * Mecanismo de pontuação do traçado (Ticket A1).
+ * Fórmula congelada v1: overall = coverage * precision * engagement.
+ * Engagement: valid trace length / (target length * 0.25), limitado a 1.0.
+ * Garante que rabiscos generalizados não atinjam o limiar de 0.70.
  */
 
-import { distanceSquared } from './geometry'
+import { distance, distanceSquared } from './geometry'
 import type { GlyphGeometry, Point, TracingScore, TracingStroke } from './types'
+
+/**
+ * Avalia se um ponto está dentro do corredor de tolerância da linha guia.
+ */
+export function isPointInsideCorridor(
+  point: Point,
+  targetSamples: Point[],
+  toleranceRadius: number,
+): boolean {
+  const toleranceR2 = toleranceRadius * toleranceRadius
+  for (let i = 0; i < targetSamples.length; i++) {
+    if (distanceSquared(point, targetSamples[i]) <= toleranceR2) {
+      return true
+    }
+  }
+  return false
+}
 
 /**
  * Calcula a cobertura de pontos da linha guia do glifo.
@@ -16,7 +35,6 @@ export function calculateCoverage(
 ): { coverage: number; coveredSampleCount: number; totalSampleCount: number } {
   const toleranceR2 = glyph.toleranceRadius * glyph.toleranceRadius
 
-  // Coleta todos os pontos de todos os traços
   const drawnPoints: Point[] = []
   for (let s = 0; s < strokes.length; s++) {
     const stroke = strokes[s]
@@ -29,7 +47,6 @@ export function calculateCoverage(
     return { coverage: 0, coveredSampleCount: 0, totalSampleCount: 1 }
   }
 
-  // Coleta todos os pontos amostrais de todos os traços do glifo
   const allTargetSamples: Point[] = []
   for (let s = 0; s < glyph.strokes.length; s++) {
     allTargetSamples.push(...glyph.strokes[s].samplePoints)
@@ -63,94 +80,119 @@ export function calculateCoverage(
 }
 
 /**
- * Calcula a precisão do traço em relação à linha guia.
- * Se a criança rabiscar muito fora da linha guia, a precisão cai drasticamente.
+ * Calcula métricas de comprimento de traço válido e total.
+ */
+export function calculateTraceLengths(
+  strokes: TracingStroke[],
+  targetSamples: Point[],
+  toleranceRadius: number,
+): {
+  totalLength: number
+  validLength: number
+  validPointsCount: number
+  totalPointsCount: number
+} {
+  let totalLength = 0
+  let validLength = 0
+  let validPointsCount = 0
+  let totalPointsCount = 0
+
+  for (let s = 0; s < strokes.length; s++) {
+    const pts = strokes[s].points
+    totalPointsCount += pts.length
+    if (pts.length === 0) continue
+
+    let prevPoint = pts[0]
+    let prevValid = isPointInsideCorridor(prevPoint, targetSamples, toleranceRadius)
+    if (prevValid) validPointsCount++
+
+    for (let p = 1; p < pts.length; p++) {
+      const currPoint = pts[p]
+      const currValid = isPointInsideCorridor(currPoint, targetSamples, toleranceRadius)
+      if (currValid) validPointsCount++
+
+      const segLen = distance(prevPoint, currPoint)
+      totalLength += segLen
+
+      // Segmento é válido se ambos os pontos ou a média estiver no corredor
+      if (prevValid && currValid) {
+        validLength += segLen
+      } else if (prevValid || currValid) {
+        validLength += segLen * 0.5
+      }
+
+      prevPoint = currPoint
+      prevValid = currValid
+    }
+  }
+
+  return { totalLength, validLength, validPointsCount, totalPointsCount }
+}
+
+/**
+ * Calcula a precisão do traçado:
+ * Proporção de traço dentro do corredor de tolerância sobre o comprimento total desenhado.
  */
 export function calculatePrecision(strokes: TracingStroke[], glyph: GlyphGeometry): number {
-  const allDrawnPoints: Point[] = []
-  for (let s = 0; s < strokes.length; s++) {
-    allDrawnPoints.push(...strokes[s].points)
-  }
-
-  if (allDrawnPoints.length === 0) {
-    return 1
-  }
-
   const allTargetSamples: Point[] = []
   for (let s = 0; s < glyph.strokes.length; s++) {
     allTargetSamples.push(...glyph.strokes[s].samplePoints)
   }
 
-  if (allTargetSamples.length === 0) {
+  const { totalLength, validLength, validPointsCount, totalPointsCount } = calculateTraceLengths(
+    strokes,
+    allTargetSamples,
+    glyph.toleranceRadius,
+  )
+
+  if (totalPointsCount === 0) {
     return 1
   }
 
-  const tolerance = glyph.toleranceRadius
-  let totalPrecisionWeight = 0
-
-  for (let i = 0; i < allDrawnPoints.length; i++) {
-    const drawn = allDrawnPoints[i]
-    let minDistance = Number.POSITIVE_INFINITY
-
-    for (let j = 0; j < allTargetSamples.length; j++) {
-      const d2 = distanceSquared(drawn, allTargetSamples[j])
-      if (d2 < minDistance) {
-        minDistance = d2
-      }
-    }
-
-    const dist = Math.sqrt(minDistance)
-    if (dist <= tolerance) {
-      // Dentro do corredor: precisão alta entre 0.7 e 1.0
-      totalPrecisionWeight += 1.0 - 0.3 * (dist / tolerance)
-    } else {
-      // Fora do corredor: penalidade proporcional ao desvio
-      const excess = dist - tolerance
-      const penaltyScore = Math.max(0, 0.7 - excess * 2.5)
-      totalPrecisionWeight += penaltyScore
-    }
+  if (totalLength > 0.01) {
+    return Math.min(1, Math.max(0, validLength / totalLength))
   }
 
-  return Math.min(1, Math.max(0, totalPrecisionWeight / allDrawnPoints.length))
+  return validPointsCount / totalPointsCount
 }
 
 /**
- * Calcula o engajamento baseado na fluidez do traçado e tempo de atividade.
+ * Calcula o engajamento conforme o contrato v1:
+ * engagement = validTraceLength / (targetLength * 0.25), limitado a 1.0.
  */
-export function calculateEngagement(
-  strokes: TracingStroke[],
-  elapsedMs: number,
-  totalSampleCount: number,
-): number {
-  let totalPoints = 0
-  for (let s = 0; s < strokes.length; s++) {
-    totalPoints += strokes[s].points.length
+export function calculateEngagement(strokes: TracingStroke[], glyph: GlyphGeometry): number {
+  const allTargetSamples: Point[] = []
+  for (let s = 0; s < glyph.strokes.length; s++) {
+    allTargetSamples.push(...glyph.strokes[s].samplePoints)
   }
 
-  if (totalPoints === 0 || elapsedMs <= 0) {
+  const { validLength, validPointsCount } = calculateTraceLengths(
+    strokes,
+    allTargetSamples,
+    glyph.toleranceRadius,
+  )
+
+  if (validPointsCount === 0) {
     return 0
   }
 
-  // Pontos suficientes com tempo adequado geram engajamento saudável
-  const expectedPoints = Math.max(10, totalSampleCount * 0.8)
-  const densityRatio = Math.min(1, totalPoints / expectedPoints)
+  const targetLength = Math.max(0.1, glyph.totalTargetLength)
+  const engagementBaseline = targetLength * 0.25
+  const engagement = Math.min(1.0, Math.max(0, validLength / engagementBaseline))
 
-  // Evita estagnação temporal extrema
-  const durationSec = elapsedMs / 1000
-  const temporalFactor = durationSec > 0.1 && durationSec < 60 ? 1 : 0.8
+  // Se houver pontos válidos mesmo com comprimento ínfimo (ex: toque inicial), garante base mínima proporcional
+  if (engagement === 0 && validPointsCount > 0) {
+    return Math.min(0.2, validPointsCount * 0.02)
+  }
 
-  return Math.min(1, Math.max(0, densityRatio * temporalFactor))
+  return engagement
 }
 
 /**
  * Calcula a pontuação completa e atualizada do traçado.
- * A pontuação pode subir (conforme cobre mais a letra com precisão) ou descer (ao desviar ou rabiscar fora).
+ * Fórmula congelada v1: overall = coverage * precision * engagement.
  */
-export function calculateLiveScore(
-  strokes: TracingStroke[],
-  glyph: GlyphGeometry,
-  elapsedMs: number,
-): TracingScore {
+export function calculateLiveScore(strokes: TracingStroke[], glyph: GlyphGeometry): TracingScore {
   let totalDrawnPoints = 0
   for (let s = 0; s < strokes.length; s++) {
     totalDrawnPoints += strokes[s].points.length
@@ -165,12 +207,12 @@ export function calculateLiveScore(
     }
   }
 
-  const { coverage, totalSampleCount } = calculateCoverage(strokes, glyph)
+  const { coverage } = calculateCoverage(strokes, glyph)
   const precision = calculatePrecision(strokes, glyph)
-  const engagement = calculateEngagement(strokes, elapsedMs, totalSampleCount)
+  const engagement = calculateEngagement(strokes, glyph)
 
-  // Cobertura é o fator principal (60%), precisão garante qualidade motora (30%), engajamento avalia fluidez (10%)
-  const rawOverall = coverage * 0.6 + precision * 0.3 + engagement * 0.1
+  // Fórmula congelada v1: produto multiplicativo
+  const rawOverall = coverage * precision * engagement
   const overall = Math.min(1, Math.max(0, Math.round(rawOverall * 1000) / 1000))
 
   return {
