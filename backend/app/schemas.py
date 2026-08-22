@@ -23,6 +23,7 @@ from app.tracing import (
     TRACE_SCHEMA_VERSION,
     TRACE_SCORING_VERSION,
     ContactMode,
+    GlyphTraceEvidence,
     RunTraceStatus,
     TraceEvidence,
 )
@@ -675,11 +676,28 @@ class GlyphSetOut(BaseModel):
     retired_at: datetime | None = None
 
 
+class GlyphSetCatalogOut(BaseModel):
+    """Immutable geometry contract shared by catalog and tracing runs."""
+
+    id: int
+    version: str
+    artifact_sha256: str
+    sha256: str
+    artifact_path: str
+    style: str
+    geometry: dict[str, object]
+    immutable: bool
+
+
+class GlyphSetCatalogResponse(BaseModel):
+    items: list[GlyphSetCatalogOut]
+
+
 class TraceDefaults(BaseModel):
     """Game policy with the same bounds enforced by the database."""
 
     threshold: int = Field(default=70, ge=0, le=100)
-    contact_mode: ContactMode = ContactMode.STRICT_CONTINUOUS
+    contact_mode: ContactMode = ContactMode.TIMED_PAUSE
     pause_grace_ms: int = Field(default=DEFAULT_PAUSE_GRACE_MS, ge=0, le=MAX_PAUSE_GRACE_MS)
     glyph_set_id: int = Field(ge=1)
     glyph_set_version: str = Field(min_length=1, max_length=120)
@@ -703,6 +721,42 @@ class AssignmentTraceOverrides(BaseModel):
     threshold_override: int | None = Field(default=None, ge=0, le=100)
     contact_mode_override: ContactMode | None = None
     pause_grace_ms_override: int | None = Field(default=None, ge=0, le=MAX_PAUSE_GRACE_MS)
+
+
+class GameTracingConfigPatch(BaseModel):
+    glyph_set_id: int | None = Field(default=None, ge=1)
+    threshold: int | None = Field(default=None, ge=0, le=100)
+    contact_mode: ContactMode | None = None
+    pause_grace_ms: int | None = Field(default=None, ge=0, le=MAX_PAUSE_GRACE_MS)
+
+    @model_validator(mode="after")
+    def _requires_non_null_update(self) -> Self:
+        if not self.model_fields_set:
+            raise ValueError("at least one tracing configuration field is required")
+        if any(getattr(self, field) is None for field in self.model_fields_set):
+            raise ValueError("tracing configuration fields cannot be null")
+        return self
+
+
+class AssignmentTracingConfigOut(AssignmentTraceOverrides):
+    assignment_id: int
+    game_id: int
+    child_id: uuid.UUID
+
+
+class LinkedAssignmentOut(BaseModel):
+    assignment_id: int
+    game_id: int
+
+
+class LinkedChildOut(BaseModel):
+    child_id: uuid.UUID
+    name: str
+    assignments: list[LinkedAssignmentOut]
+
+
+class LinkedChildrenResponse(BaseModel):
+    items: list[LinkedChildOut]
 
 
 class GameRunEvidenceOut(BaseModel):
@@ -800,6 +854,52 @@ class GameRunTraceRecord(BaseModel):
         ):
             raise ValueError("glyph_set_id must match effective_config.glyph_set_id")
         return self
+
+
+class TracingRunStartRequest(BaseModel):
+    child_id: uuid.UUID
+    assignment_id: int | None = Field(default=None, ge=1)
+
+
+class TracingRunFinalizeRequest(BaseModel):
+    idempotency_key: str = Field(min_length=1, max_length=160)
+    evidence: TraceEvidence
+
+
+class TracingRunOut(BaseModel):
+    """Adult-facing tracing run summary; replay evidence is opt-in."""
+
+    id: int
+    game_id: int
+    child_id: uuid.UUID
+    status: RunTraceStatus
+    score: int | None
+    duration_seconds: int | None
+    glyph_set_id: int | None
+    glyph_set_version: str | None
+    glyph_set_sha256: str | None
+    threshold: int | None
+    contact_mode: ContactMode | None
+    pause_grace_ms: int | None
+    scoring_version: int | None
+    schema_version: int | None
+    effective_config: dict[str, object]
+    glyph_sequence: list[str]
+    glyphs: list[GlyphTraceEvidence] = Field(default_factory=list)
+    evidence_sha256: str | None = None
+    evidence_version: int | None = None
+    evidence: TraceEvidence | None = None
+    glyph_set: GlyphSetCatalogOut | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    last_activity_at: datetime | None = None
+
+
+class TracingRunListResponse(BaseModel):
+    items: list[TracingRunOut]
+    limit: int
+    offset: int
+    has_more: bool
 
 
 class PinRequest(BaseModel):

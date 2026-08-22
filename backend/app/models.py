@@ -120,12 +120,12 @@ class GameRun(Base):
     pause_grace_ms: Mapped[int | None] = mapped_column(Integer)
     scoring_version: Mapped[int | None] = mapped_column(Integer)
     schema_version: Mapped[int | None] = mapped_column(Integer)
-    effective_config: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    effective_config: Mapped[dict[str, object] | None] = mapped_column(JSONB(none_as_null=True))
     idempotency_key: Mapped[str | None] = mapped_column(String(160), unique=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    evidence: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    evidence: Mapped[dict[str, object] | None] = mapped_column(JSONB(none_as_null=True))
     evidence_sha256: Mapped[str | None] = mapped_column(String(64))
     evidence_version: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
@@ -234,7 +234,7 @@ class GameDefaults(Base):
     glyph_set_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     threshold: Mapped[int] = mapped_column(Integer, server_default=text("70"), nullable=False)
     contact_mode: Mapped[str] = mapped_column(
-        String(30), server_default=text("'strict_continuous'"), nullable=False
+        String(30), server_default=text("'timed_pause'"), nullable=False
     )
     pause_grace_ms: Mapped[int] = mapped_column(
         Integer, server_default=text(str(DEFAULT_PAUSE_GRACE_MS)), nullable=False

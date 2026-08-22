@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.routers import assignments, auth, family, game_runs, games
+from app.routers import assignments, auth, family, game_runs, games, tracing_runs
 
 app = FastAPI(title="Tá Sabido API", version="0.2.0")
 
@@ -29,6 +29,7 @@ app.include_router(auth.router)
 app.include_router(games.router)
 app.include_router(assignments.router)
 app.include_router(game_runs.router)
+app.include_router(tracing_runs.router)
 app.include_router(family.router)
 app.include_router(family.children_router)
 

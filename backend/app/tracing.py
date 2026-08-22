@@ -630,6 +630,7 @@ def make_trace_evidence(
     glyph_scores: Sequence[TraceScore] | None = None,
     mode: ContactMode | str = ContactMode.STRICT_CONTINUOUS,
     pause_grace_ms: int = DEFAULT_PAUSE_GRACE_MS,
+    minimum_score: int | None = None,
 ) -> TraceEvidence:
     """Build complete evidence without smoothing or rendered-image substitution."""
 
@@ -643,9 +644,15 @@ def make_trace_evidence(
     for glyph_index in range(glyph_count):
         item = scores[glyph_index] if glyph_index < len(scores) else TraceScore(0, 0, 0, 0, False)
         segments = _segment_evidence(replay, glyph_index)
-        if item.completed:
+        meets_threshold = item.completed and (minimum_score is None or item.score >= minimum_score)
+        below_threshold = (
+            item.completed and minimum_score is not None and item.score < minimum_score
+        )
+        if meets_threshold:
             status = GlyphTraceStatus.COMPLETED
-        elif any(segment.status is SegmentStatus.CANCELLED for segment in segments):
+        elif below_threshold or any(
+            segment.status is SegmentStatus.CANCELLED for segment in segments
+        ):
             status = GlyphTraceStatus.ABANDONED
         elif segments:
             status = GlyphTraceStatus.INVALID

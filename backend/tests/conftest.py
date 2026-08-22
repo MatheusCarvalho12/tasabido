@@ -61,6 +61,10 @@ def _clean_users() -> Generator[None]:
     from app.database import engine
 
     with engine.begin() as conn:
+        # The tracing API fixture recreates this contract for its own tests.
+        # Remove it first so repeated full-suite runs do not leave a slug
+        # collision or stale defaults for the game tests.
+        conn.execute(text("DELETE FROM games WHERE slug = 'escreva-seu-nome'"))
         # CASCADE: children referencia users (ON DELETE CASCADE).
         conn.execute(text("TRUNCATE TABLE users CASCADE"))
     yield

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Child, User
+from app.models import Child, GameAssignment, User
 from app.schemas import UserRole
 from app.security import decode_access_token
 
@@ -88,3 +88,52 @@ def get_child_for_user(db: Session, child_id: UUID, user: User) -> Child:
     if user.role == UserRole.FAMILY.value and child.user_id != user.id:
         raise CHILD_NOT_FOUND
     return child
+
+
+def get_tracing_access(
+    db: Session,
+    child_id: UUID,
+    game_id: int,
+    user: User,
+    assignment_id: int | None = None,
+) -> tuple[Child, GameAssignment | None]:
+    """Authorize tracing without changing the legacy child-access contract.
+
+    Families are restricted to their own child. Professionals must have an
+    assignment they own for this exact child and game. Every denial is a 404 so
+    an unauthorized adult cannot enumerate children, games, or assignments.
+    """
+    if user.role == UserRole.FAMILY.value:
+        child = db.scalar(select(Child).where(Child.id == child_id, Child.user_id == user.id))
+        if child is None:
+            raise CHILD_NOT_FOUND
+        if assignment_id is None:
+            return child, None
+        assignment_query = select(GameAssignment).where(
+            GameAssignment.child_id == child_id,
+            GameAssignment.game_id == game_id,
+        )
+        if assignment_id is not None:
+            assignment_query = assignment_query.where(GameAssignment.id == assignment_id)
+        assignment = db.scalar(assignment_query)
+        if assignment_id is not None and assignment is None:
+            raise CHILD_NOT_FOUND
+        return child, assignment
+
+    if user.role == UserRole.PROFESSIONAL.value:
+        assignment_query = select(GameAssignment).where(
+            GameAssignment.child_id == child_id,
+            GameAssignment.game_id == game_id,
+            GameAssignment.professional_id == user.id,
+        )
+        if assignment_id is not None:
+            assignment_query = assignment_query.where(GameAssignment.id == assignment_id)
+        assignment = db.scalar(assignment_query)
+        if assignment is None:
+            raise CHILD_NOT_FOUND
+        child = db.get(Child, child_id)
+        if child is None:
+            raise CHILD_NOT_FOUND
+        return child, assignment
+
+    raise CHILD_NOT_FOUND

@@ -46,6 +46,8 @@ def test_tracing_migration_is_one_forward_revision_and_keeps_legacy_evidence_nul
     assert "nullable=True" in source
     assert "ix_game_runs_last_activity_at" in source
     assert "score/duration nullable" in source
+    assert "server_default=sa.text(\"'timed_pause'\")" in source
+    assert source.count("none_as_null=True") == 2
 
 
 def test_migration_declares_field_level_override_bounds() -> None:

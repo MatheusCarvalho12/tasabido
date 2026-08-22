@@ -105,7 +105,7 @@ def upgrade() -> None:
         sa.Column(
             "contact_mode",
             sa.String(length=30),
-            server_default=sa.text("'strict_continuous'"),
+            server_default=sa.text("'timed_pause'"),
             nullable=False,
         ),
         sa.Column(
@@ -205,7 +205,11 @@ def upgrade() -> None:
     op.add_column("game_runs", sa.Column("schema_version", sa.Integer(), nullable=True))
     op.add_column(
         "game_runs",
-        sa.Column("effective_config", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "effective_config",
+            postgresql.JSONB(astext_type=sa.Text(), none_as_null=True),
+            nullable=True,
+        ),
     )
     op.add_column("game_runs", sa.Column("idempotency_key", sa.String(length=160), nullable=True))
     op.create_unique_constraint("uq_game_runs_idempotency_key", "game_runs", ["idempotency_key"])
@@ -215,7 +219,12 @@ def upgrade() -> None:
         "game_runs", sa.Column("last_activity_at", sa.DateTime(timezone=True), nullable=True)
     )
     op.add_column(
-        "game_runs", sa.Column("evidence", postgresql.JSONB(astext_type=sa.Text()), nullable=True)
+        "game_runs",
+        sa.Column(
+            "evidence",
+            postgresql.JSONB(astext_type=sa.Text(), none_as_null=True),
+            nullable=True,
+        ),
     )
     op.add_column("game_runs", sa.Column("evidence_sha256", sa.String(length=64), nullable=True))
     op.add_column("game_runs", sa.Column("evidence_version", sa.Integer(), nullable=True))
