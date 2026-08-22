@@ -99,6 +99,30 @@ describe('TracingEngine (Ticket A1 Frozen v1)', () => {
     })
   })
 
+  describe('invalid state on out-of-bounds interaction', () => {
+    it('transitions to invalid when pointer moves outside bounds and recovers when in-bounds', () => {
+      const engine = new TracingEngine({
+        glyph: glyphL,
+        mode: 'strict_continuous',
+        clock,
+      })
+
+      engine.handlePointerDown(0.25, 0.15, 1)
+      expect(engine.getState()).toBe('drawing')
+
+      // Move out of bounds (x > 1.0 or isOutOfBounds: true)
+      engine.handlePointerMove(1.2, 0.5, 1, true)
+      expect(engine.getState()).toBe('invalid')
+
+      const evidenceMid = engine.getEvidence()
+      expect(evidenceMid.outOfBoundsCount).toBeGreaterThan(0)
+
+      // Move back in bounds
+      engine.handlePointerMove(0.25, 0.5, 1, false)
+      expect(engine.getState()).toBe('drawing')
+    })
+  })
+
   describe('interruptions: pointercancel and lostpointercapture are NON-COMPLETING', () => {
     it('never completes on pointercancel even if live score is above threshold', () => {
       let completedCalled = false
@@ -169,6 +193,7 @@ describe('TracingEngine (Ticket A1 Frozen v1)', () => {
       const engine = new TracingEngine({
         glyph: glyphL,
         glyphIndex: 2,
+        sessionId: 'shared_session_123',
         mode: 'strict_continuous',
         clock,
       })
@@ -179,6 +204,7 @@ describe('TracingEngine (Ticket A1 Frozen v1)', () => {
       engine.handlePointerUp(0.25, 0.5, 1)
 
       const evidence = engine.getEvidence()
+      expect(evidence.sessionId).toBe('shared_session_123')
       expect(evidence.events.length).toBeGreaterThan(0)
 
       let prevSeq = 0

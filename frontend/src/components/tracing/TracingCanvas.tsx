@@ -12,6 +12,7 @@ import {
   PencilSimple,
   Sparkle,
   Timer,
+  WarningCircle,
 } from '@phosphor-icons/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -158,10 +159,13 @@ export function TracingCanvas({
   } else if (state === 'grace') {
     statusText = 'Pausado! Continue desenhando antes do tempo acabar.'
     statusIcon = <Timer className="size-5 shrink-0" weight="bold" />
+  } else if (state === 'invalid') {
+    statusText = 'Você saiu da área de desenho! Volte para a letra.'
+    statusIcon = <WarningCircle className="size-5 shrink-0 text-coral" weight="fill" />
   } else if (state === 'completed') {
     statusText = 'Letra concluída com sucesso!'
     statusIcon = <CheckCircle className="size-5 shrink-0" weight="fill" />
-  } else if (state === 'reset' || state === 'invalid') {
+  } else if (state === 'reset') {
     statusText = 'Vamos tentar de novo com calma!'
     statusIcon = <HandTap className="size-5 shrink-0" weight="bold" />
   }

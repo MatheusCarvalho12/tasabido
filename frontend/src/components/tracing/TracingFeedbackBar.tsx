@@ -3,7 +3,7 @@
  * NUNCA exibe pontuação numérica ou percentual para a criança.
  */
 
-import { HandTap, Sparkle, Star, Timer } from '@phosphor-icons/react'
+import { HandTap, Sparkle, Star, Timer, WarningCircle } from '@phosphor-icons/react'
 
 import type { TracingScore, TracingState } from '@/lib/tracing/types'
 
@@ -44,6 +44,14 @@ export function TracingFeedbackBar({ state, score, className = '' }: TracingFeed
     copy = 'Pode continuar! Volte a desenhar.'
     icon = <Timer weight="bold" className="size-6 text-coral" />
     barColor = 'bg-coral'
+  } else if (state === 'invalid') {
+    copy = 'Você saiu da área de desenho! Volte para a letra.'
+    icon = <WarningCircle weight="fill" className="size-6 text-coral" />
+    barColor = 'bg-coral'
+  } else if (state === 'reset') {
+    copy = 'Vamos tentar de novo com calma!'
+    icon = <HandTap weight="bold" className="size-6 text-coral" />
+    barColor = 'bg-coral'
   } else if (state === 'drawing') {
     if (progressPercent > 60) {
       copy = 'Muito bem! Você está quase lá!'
@@ -58,10 +66,6 @@ export function TracingFeedbackBar({ state, score, className = '' }: TracingFeed
       icon = <HandTap weight="bold" className="size-6 text-turquoise" />
       barColor = 'bg-turquoise'
     }
-  } else if (state === 'reset' || state === 'invalid') {
-    copy = 'Vamos tentar de novo com calma!'
-    icon = <HandTap weight="bold" className="size-6 text-coral" />
-    barColor = 'bg-coral'
   }
 
   return (

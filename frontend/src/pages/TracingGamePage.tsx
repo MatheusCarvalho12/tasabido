@@ -4,7 +4,7 @@
  *
  * Estados do fluxo infantil:
  * - loading: Carregamento dos dados da criança e do jogo.
- * - error: Falha de rede, criança ausente ou letras não suportadas.
+ * - error: Falha de rede, criança ausente ou letras não suportadas (sem avançar).
  * - intro: Apresentação da brincadeira, mascote e prévia do nome.
  * - gameplay: Traçado ativo com estados do motor (ready, drawing, valid_touching, grace, reset, invalid).
  * - transition: Transição e celebração entre letras.
@@ -33,7 +33,11 @@ import { fetchChildrenApi, fetchPublicGamesApi } from '@/lib/games'
 import { lockLandscape, unlockOrientation } from '@/lib/orientation'
 import { submitTracingSession } from '@/lib/tracing/adapter'
 import { TracingEngine } from '@/lib/tracing/engine'
-import { getGlyphGeometry, normalizeChildFirstName } from '@/lib/tracing/geometry'
+import {
+  getGlyphGeometry,
+  normalizeChildFirstName,
+  validateGlyphSequence,
+} from '@/lib/tracing/geometry'
 import type {
   GlyphGeometry,
   TracingEvidenceV1,
@@ -50,6 +54,10 @@ export type FlowScreenState =
   | 'gameplay'
   | 'transition'
   | 'completion'
+
+function generateRunSessionId(): string {
+  return `trace_run_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+}
 
 export function TracingGamePage() {
   const navigate = useNavigate()
@@ -95,6 +103,8 @@ export function TracingGamePage() {
   const [showAbandonModal, setShowAbandonModal] = useState<boolean>(false)
   const [tracingMode] = useState<TracingMode>('timed_pause')
 
+  // Run/Session ID consistente para toda a partida (não muda a cada glifo)
+  const runSessionIdRef = useRef<string>(generateRunSessionId())
   const completedEvidencesRef = useRef<TracingEvidenceV1[]>([])
   const engineRef = useRef<TracingEngine | null>(null)
   const sessionStartTimeRef = useRef<number>(Date.now())
@@ -108,7 +118,7 @@ export function TracingGamePage() {
     overall: 0,
   })
 
-  // Sincroniza estado inicial com base nas queries
+  // Sincroniza e valida estado inicial com base nas queries
   useEffect(() => {
     if (childrenQuery.isLoading || gamesQuery.isLoading) {
       setScreenState('loading')
@@ -121,14 +131,24 @@ export function TracingGamePage() {
       return
     }
 
-    if (!child) {
+    if (!child?.name?.trim()) {
       setErrorMessage('Nenhuma criança encontrada para a família atual.')
       setScreenState('error')
       return
     }
 
     if (glyphChars.length === 0) {
-      setErrorMessage('O nome da criança não possui letras suportadas para traçado.')
+      setErrorMessage('O nome da criança está vazio ou inválido.')
+      setScreenState('error')
+      return
+    }
+
+    // Validação estrita: se algum caractere do nome não for suportado, bloqueia no erro
+    const validation = validateGlyphSequence(glyphChars)
+    if (!validation.isValid) {
+      setErrorMessage(
+        `O nome contém caracteres não suportados para traçado: ${validation.unsupported.join(', ')}`,
+      )
       setScreenState('error')
       return
     }
@@ -139,7 +159,6 @@ export function TracingGamePage() {
       return
     }
 
-    // Carregamento concluído com sucesso: vai para a introdução
     setScreenState((prev) => (prev === 'loading' ? 'intro' : prev))
   }, [
     childrenQuery.isLoading,
@@ -147,14 +166,20 @@ export function TracingGamePage() {
     childrenQuery.isError,
     gamesQuery.isError,
     child,
-    glyphChars.length,
+    glyphChars,
     matchedGame,
     slug,
   ])
 
-  const currentGlyphChar = glyphChars[currentGlyphIndex] ?? 'A'
-  const currentGlyphGeom: GlyphGeometry = useMemo(() => {
-    return getGlyphGeometry(currentGlyphChar)
+  const currentGlyphChar = glyphChars[currentGlyphIndex]
+
+  const currentGlyphGeom: GlyphGeometry | null = useMemo(() => {
+    if (!currentGlyphChar) return null
+    try {
+      return getGlyphGeometry(currentGlyphChar)
+    } catch {
+      return null
+    }
   }, [currentGlyphChar])
 
   const glyphItems = useMemo(
@@ -174,12 +199,18 @@ export function TracingGamePage() {
       const isLastGlyph = currentGlyphIndex >= glyphChars.length - 1
 
       if (isLastGlyph) {
-        // Encerrou todas as letras do nome! Serializa evidência completa da sessão
+        if (!child?.name) {
+          setErrorMessage('Erro de integridade dos dados da criança.')
+          setScreenState('error')
+          return
+        }
+
+        // Encerrou todas as letras do nome! Serializa evidência completa da sessão usando run ID
         const sessionEvidence: TracingSessionEvidenceV1 = {
           schemaVersion: 'v1',
           scoringVersion: 'v1',
-          sessionId: evidence.sessionId,
-          childName: child?.name ?? 'Criança',
+          sessionId: runSessionIdRef.current,
+          childName: child.name,
           mode: tracingMode,
           status: 'completed',
           startedAt: new Date(sessionStartTimeRef.current).toISOString(),
@@ -215,6 +246,7 @@ export function TracingGamePage() {
       const engine = new TracingEngine({
         glyph,
         glyphIndex: index,
+        sessionId: runSessionIdRef.current,
         mode: tracingMode,
         completionThreshold: 0.7,
         graceDurationMs: 1500,
@@ -242,6 +274,11 @@ export function TracingGamePage() {
   // Atualiza motor quando índice do glifo muda no gameplay
   useEffect(() => {
     if (screenState === 'gameplay' && glyphChars.length > 0) {
+      if (!currentGlyphGeom) {
+        setErrorMessage('Letra atual não é suportada pelo motor de traçado.')
+        setScreenState('error')
+        return
+      }
       initEngineForGlyph(currentGlyphGeom, currentGlyphIndex)
     }
     return () => {
@@ -252,6 +289,7 @@ export function TracingGamePage() {
   }, [screenState, currentGlyphGeom, currentGlyphIndex, glyphChars.length, initEngineForGlyph])
 
   const handleStartGame = () => {
+    runSessionIdRef.current = generateRunSessionId()
     sessionStartTimeRef.current = Date.now()
     completedEvidencesRef.current = []
     setCurrentGlyphIndex(0)
@@ -260,6 +298,7 @@ export function TracingGamePage() {
   }
 
   const handleRestartGame = () => {
+    runSessionIdRef.current = generateRunSessionId()
     sessionStartTimeRef.current = Date.now()
     completedEvidencesRef.current = []
     setCurrentGlyphIndex(0)
@@ -270,6 +309,11 @@ export function TracingGamePage() {
   const handleConfirmAbandon = () => {
     setShowAbandonModal(false)
 
+    if (!child?.name) {
+      void navigate({ to: '/' })
+      return
+    }
+
     // Serializa evidência fiel de abandono contendo glifos concluídos e parcial atual
     const currentPartial = engineRef.current ? engineRef.current.abandon() : null
     const allGlyphs = currentPartial
@@ -279,8 +323,8 @@ export function TracingGamePage() {
     const sessionEvidence: TracingSessionEvidenceV1 = {
       schemaVersion: 'v1',
       scoringVersion: 'v1',
-      sessionId: currentPartial?.sessionId ?? `abandoned_${Date.now()}`,
-      childName: child?.name ?? 'Criança',
+      sessionId: runSessionIdRef.current,
+      childName: child.name,
       mode: tracingMode,
       status: 'abandoned',
       startedAt: new Date(sessionStartTimeRef.current).toISOString(),
@@ -427,7 +471,7 @@ export function TracingGamePage() {
       {/* ------------------------------------------------------------- */}
       {/* 4. TELA DE GAMEPLAY ATIVO (READY, DRAWING, GRACE, RESET)      */}
       {/* ------------------------------------------------------------- */}
-      {screenState === 'gameplay' && engineRef.current && (
+      {screenState === 'gameplay' && engineRef.current && currentGlyphGeom && (
         <main className="flex flex-1 flex-col items-center justify-center px-4 py-2 gap-3 max-w-4xl mx-auto w-full">
           {/* Canvas SVG central com captura transparente e traço fiel em preto no branco */}
           <TracingCanvas

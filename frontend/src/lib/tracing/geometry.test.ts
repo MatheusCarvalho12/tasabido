@@ -4,10 +4,13 @@ import {
   distance,
   distanceSquared,
   getGlyphGeometry,
+  isGlyphSupported,
   minDistanceToSamples,
   normalizeChildFirstName,
   sampleArc,
   sampleSegment,
+  UnsupportedGlyphError,
+  validateGlyphSequence,
 } from './geometry'
 
 describe('geometry utilities', () => {
@@ -58,14 +61,15 @@ describe('geometry utilities', () => {
   })
 })
 
-describe('normalizeChildFirstName', () => {
-  it('normalizes simple first names to uppercase letters', () => {
+describe('normalizeChildFirstName and glyph validation', () => {
+  it('normalizes simple first names to uppercase NFC letters', () => {
     expect(normalizeChildFirstName('Maria')).toEqual(['M', 'A', 'R', 'I', 'A'])
     expect(normalizeChildFirstName('maria silva')).toEqual(['M', 'A', 'R', 'I', 'A'])
     expect(normalizeChildFirstName('pedro henrique')).toEqual(['P', 'E', 'D', 'R', 'O'])
   })
 
-  it('preserves Brazilian Portuguese uppercase accents', () => {
+  it('preserves Brazilian Portuguese uppercase accents and Ü in MÜLLER', () => {
+    expect(normalizeChildFirstName('Müller')).toEqual(['M', 'Ü', 'L', 'L', 'E', 'R'])
     expect(normalizeChildFirstName('João')).toEqual(['J', 'O', 'Ã', 'O'])
     expect(normalizeChildFirstName('Vitória')).toEqual(['V', 'I', 'T', 'Ó', 'R', 'I', 'A'])
     expect(normalizeChildFirstName('Érica')).toEqual(['É', 'R', 'I', 'C', 'A'])
@@ -75,18 +79,33 @@ describe('normalizeChildFirstName', () => {
     expect(normalizeChildFirstName('Luís')).toEqual(['L', 'U', 'Í', 'S'])
   })
 
-  it('returns empty array when name is empty or invalid (no invented fallback names)', () => {
+  it('preserves full character sequence and validates against catalog without silent skipping', () => {
+    // Unsupported character '9' or 'Ø' is NEVER silently dropped into 'MLLER'
+    const normalizedWith9 = normalizeChildFirstName('M9ller')
+    expect(normalizedWith9).toEqual(['M', '9', 'L', 'L', 'E', 'R'])
+    const validation9 = validateGlyphSequence(normalizedWith9)
+    expect(validation9.isValid).toBe(false)
+    expect(validation9.unsupported).toEqual(['9'])
+
+    const normalizedWithNordic = normalizeChildFirstName('Møller')
+    expect(normalizedWithNordic).toEqual(['M', 'Ø', 'L', 'L', 'E', 'R'])
+    const validationNordic = validateGlyphSequence(normalizedWithNordic)
+    expect(validationNordic.isValid).toBe(false)
+    expect(validationNordic.unsupported).toEqual(['Ø'])
+  })
+
+  it('returns empty array when name is empty or whitespace', () => {
     expect(normalizeChildFirstName('')).toEqual([])
     expect(normalizeChildFirstName(null)).toEqual([])
-    expect(normalizeChildFirstName('123')).toEqual([])
     expect(normalizeChildFirstName('   ')).toEqual([])
   })
 })
 
-describe('canonical glyph definitions', () => {
-  it('provides geometry for all A-Z letters with exact 0.70 threshold', () => {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+describe('canonical glyph catalog', () => {
+  it('provides geometry for all A-Z letters and Ü with exact 0.70 threshold', () => {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZÜ'.split('')
     for (const letter of alphabet) {
+      expect(isGlyphSupported(letter)).toBe(true)
       const geom = getGlyphGeometry(letter)
       expect(geom.character).toBe(letter)
       expect(geom.completionThreshold).toBe(0.7)
@@ -96,12 +115,21 @@ describe('canonical glyph definitions', () => {
   })
 
   it('provides geometry for accented uppercase Brazilian letters', () => {
-    const accentedLetters = ['Á', 'À', 'Â', 'Ã', 'É', 'Ê', 'Í', 'Ó', 'Ô', 'Õ', 'Ú', 'Ç']
+    const accentedLetters = ['Á', 'À', 'Â', 'Ã', 'É', 'Ê', 'Í', 'Ó', 'Ô', 'Õ', 'Ú', 'Ç', 'Ü']
     for (const letter of accentedLetters) {
+      expect(isGlyphSupported(letter)).toBe(true)
       const geom = getGlyphGeometry(letter)
       expect(geom.character).toBe(letter)
       expect(geom.completionThreshold).toBe(0.7)
       expect(geom.strokes.length).toBeGreaterThan(1)
     }
+  })
+
+  it('throws UnsupportedGlyphError for unknown/unsupported characters', () => {
+    expect(isGlyphSupported('9')).toBe(false)
+    expect(isGlyphSupported('Ø')).toBe(false)
+    expect(isGlyphSupported('?')).toBe(false)
+    expect(() => getGlyphGeometry('9')).toThrow(UnsupportedGlyphError)
+    expect(() => getGlyphGeometry('Ø')).toThrow(UnsupportedGlyphError)
   })
 })

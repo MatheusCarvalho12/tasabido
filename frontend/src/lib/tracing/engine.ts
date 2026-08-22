@@ -1,7 +1,7 @@
 /**
  * Motor de traçado determinístico e independente de framework (Ticket A1).
- * Implementa máquina de estados estrita/temporizada/livre, trava de ponteiro único,
- * pontuação v1 multiplicativa, eventos ordenados com seq monotônico e evidência serializável.
+ * Implementa máquina de estados estrita/temporizada/livre, estado invalid para out-of-bounds,
+ * trava de ponteiro único, pontuação v1 multiplicativa, eventos ordenados e evidência serializável.
  */
 
 import { calculateLiveScore } from './scorer'
@@ -98,6 +98,10 @@ export class TracingEngine {
     return { ...this.currentScore }
   }
 
+  public getSessionId(): string {
+    return this.sessionId
+  }
+
   public getStrokes(): TracingStroke[] {
     return this.activeStrokes.map((s) => ({
       ...s,
@@ -190,14 +194,13 @@ export class TracingEngine {
       this.onScoreChange?.(this.currentScore)
     }
 
-    // Se o score atingiu o limiar durante o toque, passa para valid_touching
+    // Se estiver em estado de desenho ativo (in-bounds), atualiza entre drawing e valid_touching
     if (this.state === 'drawing' && this.currentScore.overall >= this.completionThreshold) {
       this.setState('valid_touching')
     } else if (
       this.state === 'valid_touching' &&
       this.currentScore.overall < this.completionThreshold
     ) {
-      // Se a criança rabiscou e a precisão/overall caiu abaixo do limiar, volta a drawing
       this.setState('drawing')
     }
   }
@@ -252,7 +255,12 @@ export class TracingEngine {
       outOfBoundsCount: checkOutOfBounds ? 1 : 0,
     }
 
-    this.setState('drawing')
+    if (checkOutOfBounds) {
+      this.setState('invalid')
+    } else {
+      this.setState('drawing')
+    }
+
     this.recalculateScore()
     this.recordNormalizedEvent('pointerdown', { x, y }, pointerId, checkOutOfBounds)
     return true
@@ -277,6 +285,14 @@ export class TracingEngine {
     if (checkOutOfBounds) {
       this.outOfBoundsCount++
       this.currentStroke.outOfBoundsCount++
+      this.setState('invalid')
+    } else if (this.state === 'invalid') {
+      // Retornou para dentro dos limites válidos
+      if (this.currentScore.overall >= this.completionThreshold) {
+        this.setState('valid_touching')
+      } else {
+        this.setState('drawing')
+      }
     }
 
     const point: TimestampedPoint = {
@@ -390,14 +406,13 @@ export class TracingEngine {
     this.setState('completed')
     this.recordNormalizedEvent('complete', { x: 0, y: 0 }, 0, false)
 
-    const evidence = this.getEvidence()
+    const evidence = this.getEvidence('completed')
     this.onComplete?.(evidence)
   }
 
   /** Reseta imediatamente no modo estrito contínuo preservando histórico de replay. */
   private performStrictReset(): void {
     this.cancelGraceTimer()
-    // Marca traços ativos como resetados no histórico antes de limpar o buffer ativo
     for (let i = 0; i < this.activeStrokes.length; i++) {
       this.activeStrokes[i].status = 'reset'
     }

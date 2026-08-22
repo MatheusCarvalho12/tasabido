@@ -5,6 +5,16 @@
 
 import type { GlyphGeometry, GlyphStrokeGeometry, Point } from './types'
 
+export class UnsupportedGlyphError extends Error {
+  readonly character: string
+
+  constructor(character: string) {
+    super(`Caractere não suportado para traçado: "${character}"`)
+    this.name = 'UnsupportedGlyphError'
+    this.character = character
+  }
+}
+
 /** Distância euclidiana ao quadrado entre dois pontos. */
 export function distanceSquared(p1: Point, p2: Point): number {
   const dx = p1.x - p2.x
@@ -173,7 +183,7 @@ function createGlyph(
 }
 
 // --------------------------------------------------------------------------
-// Dicionário de Geometrias Canônicas para Letras Maiúsculas e Acentos
+// Catálogo Imutável de Geometrias Canônicas (A-Z, Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç, Ü)
 // --------------------------------------------------------------------------
 
 const CANONICAL_GLYPHS: Record<string, GlyphGeometry> = {
@@ -663,7 +673,7 @@ const CANONICAL_GLYPHS: Record<string, GlyphGeometry> = {
 }
 
 // --------------------------------------------------------------------------
-// Letras com Acentos do Português Brasileiro (Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç)
+// Letras com Acentos do Português Brasileiro (Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç, Ü)
 // --------------------------------------------------------------------------
 
 const acuteAccent = createPolylineStroke(
@@ -716,6 +726,24 @@ const cedillaMark = createPolylineStroke(
   8,
   10,
 )
+const diaeresisLeft = createPolylineStroke(
+  'accent_diaeresis_l',
+  [
+    [38, 4],
+    [38, 0],
+  ],
+  4,
+  10,
+)
+const diaeresisRight = createPolylineStroke(
+  'accent_diaeresis_r',
+  [
+    [62, 4],
+    [62, 0],
+  ],
+  4,
+  11,
+)
 
 CANONICAL_GLYPHS.Á = createGlyph('Á', 'Á', 'Letra Á', [...CANONICAL_GLYPHS.A.strokes, acuteAccent])
 CANONICAL_GLYPHS.À = createGlyph('À', 'À', 'Letra À', [...CANONICAL_GLYPHS.A.strokes, graveAccent])
@@ -738,59 +766,72 @@ CANONICAL_GLYPHS.Ô = createGlyph('Ô', 'Ô', 'Letra Ô', [
 CANONICAL_GLYPHS.Õ = createGlyph('Õ', 'Õ', 'Letra Õ', [...CANONICAL_GLYPHS.O.strokes, tildeAccent])
 CANONICAL_GLYPHS.Ú = createGlyph('Ú', 'Ú', 'Letra Ú', [...CANONICAL_GLYPHS.U.strokes, acuteAccent])
 CANONICAL_GLYPHS.Ç = createGlyph('Ç', 'Ç', 'Letra Ç', [...CANONICAL_GLYPHS.C.strokes, cedillaMark])
+CANONICAL_GLYPHS.Ü = createGlyph('Ü', 'Ü', 'Letra Ü', [
+  ...CANONICAL_GLYPHS.U.strokes,
+  diaeresisLeft,
+  diaeresisRight,
+])
 
 /**
- * Retorna a definição canônica de geometria para um caractere.
- * Suporta A-Z e acentos brasileiros (Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç).
- * Fornece fallback seguro caso um caractere desconhecido seja solicitado.
+ * Verifica se um caractere é suportado no catálogo canônico imutável.
  */
-export function getGlyphGeometry(character: string): GlyphGeometry {
-  const upper = character.toUpperCase().trim()
-  if (CANONICAL_GLYPHS[upper]) {
-    return CANONICAL_GLYPHS[upper]
-  }
-
-  // Fallback seguro se não estiver mapeada
-  return createGlyph(
-    upper || 'UNKNOWN',
-    upper || '?',
-    `Letra ${upper || '?'}`,
-    [
-      createPolylineStroke(
-        'fallback_stroke',
-        [
-          [20, 20],
-          [80, 20],
-          [80, 80],
-          [20, 80],
-          [20, 20],
-        ],
-        24,
-        1,
-      ),
-    ],
-    0.12,
-    0.7,
-  )
+export function isGlyphSupported(character: string): boolean {
+  if (!character || typeof character !== 'string') return false
+  const normalized = character.normalize('NFC').toUpperCase().trim()
+  return Object.hasOwn(CANONICAL_GLYPHS, normalized)
 }
 
 /**
- * Normaliza o primeiro nome da criança para a sequência de glifos individuais:
- * - Pega o primeiro nome
- * - Converte para MAIÚSCULAS
- * - Mantém acentos válidos (Á, É, Í, Ó, Ú, Â, Ê, Ô, Ã, Õ, Ç, À)
- * - Retorna array vazio se não houver caracteres válidos (sem inventar nomes fictícios).
+ * Retorna a definição canônica de geometria para um caractere.
+ * Lança UnsupportedGlyphError se o caractere não existir no catálogo.
+ * NUNCA inventa retângulos ou substitutos fictícios.
+ */
+export function getGlyphGeometry(character: string): GlyphGeometry {
+  if (!character || typeof character !== 'string') {
+    throw new UnsupportedGlyphError(String(character))
+  }
+  const upper = character.normalize('NFC').toUpperCase().trim()
+  const geom = CANONICAL_GLYPHS[upper]
+  if (!geom) {
+    throw new UnsupportedGlyphError(upper)
+  }
+  return geom
+}
+
+/**
+ * Normaliza o primeiro nome da criança preservando a sequência completa de caracteres em Unicode NFC + uppercase.
+ * NUNCA filtra silenciosamente nem remove caracteres não suportados.
  */
 export function normalizeChildFirstName(fullName: string | null | undefined): string[] {
   if (!fullName || typeof fullName !== 'string') {
     return []
   }
 
-  const firstName = fullName.trim().split(/\s+/)[0] ?? ''
-  const upper = firstName.toUpperCase()
+  const trimmed = fullName.trim()
+  if (!trimmed) {
+    return []
+  }
 
-  // Filtra apenas letras A-Z e acentos válidos em português
-  const validChars = upper.split('').filter((ch) => /^[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]$/.test(ch))
+  const firstName = trimmed.split(/\s+/)[0] ?? ''
+  const normalized = firstName.normalize('NFC').toUpperCase()
+  return Array.from(normalized)
+}
 
-  return validChars
+/**
+ * Valida se todos os glifos da sequência estão presentes no catálogo imutável.
+ */
+export function validateGlyphSequence(chars: string[]): {
+  isValid: boolean
+  unsupported: string[]
+} {
+  const unsupported: string[] = []
+  for (const char of chars) {
+    if (!isGlyphSupported(char)) {
+      unsupported.push(char)
+    }
+  }
+  return {
+    isValid: unsupported.length === 0,
+    unsupported,
+  }
 }

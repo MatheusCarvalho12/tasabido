@@ -77,9 +77,46 @@ describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
     })
   })
 
-  it('renders intro state with real child first name and uppercase accented letters', async () => {
+  it('renders explicit error state when child name contains unsupported glyphs (no silent skip/fallback)', async () => {
     vi.spyOn(gamesApi, 'fetchChildrenApi').mockResolvedValue({
-      items: [{ id: 'child-1', name: 'João Pedro' }],
+      items: [{ id: 'child-unsupported', name: 'M9ller' }],
+    })
+    vi.spyOn(gamesApi, 'fetchPublicGamesApi').mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          slug: 'escreva-seu-nome',
+          titulo: 'Escreva seu nome',
+          descricao: '',
+          tutorial: '',
+          categoria: 'escrita',
+          visibilidade: 'public',
+          status: 'published',
+          svg_url: null,
+          thumb_url: null,
+          banner_url: null,
+          cores: ['#48c3c7'],
+          stats: { partidas: 0, tempo_medio_min: 0, score_medio: 0 },
+        },
+      ],
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TracingGamePage />
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Ops! Algo deu errado/i)).toBeInTheDocument()
+    })
+    expect(screen.getByText(/caracteres não suportados para traçado: 9/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Começar a brincar!/i)).toBeNull()
+  })
+
+  it('renders intro state with real child first name and handles Ü in Müller', async () => {
+    vi.spyOn(gamesApi, 'fetchChildrenApi').mockResolvedValue({
+      items: [{ id: 'child-1', name: 'Müller da Silva' }],
     })
     vi.spyOn(gamesApi, 'fetchPublicGamesApi').mockResolvedValue({
       items: [
@@ -108,11 +145,11 @@ describe('TracingGamePage (Ticket A3 Child Flow & States)', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText(/Oi, João!/i)).toBeInTheDocument()
+      expect(screen.getByText(/Oi, Müller!/i)).toBeInTheDocument()
     })
 
-    // Glyphs for João: J, O, Ã, O
-    expect(screen.getByText('Ã')).toBeInTheDocument()
+    // Glyphs for Müller: M, Ü, L, L, E, R
+    expect(screen.getByText('Ü')).toBeInTheDocument()
     expect(screen.getByText(/Começar a brincar!/i)).toBeInTheDocument()
   })
 
