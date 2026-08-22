@@ -17,6 +17,16 @@ from pydantic import (
 )
 from validate_docbr import CNPJ, CPF
 
+from app.tracing import (
+    DEFAULT_PAUSE_GRACE_MS,
+    MAX_PAUSE_GRACE_MS,
+    TRACE_SCHEMA_VERSION,
+    TRACE_SCORING_VERSION,
+    ContactMode,
+    RunTraceStatus,
+    TraceEvidence,
+)
+
 
 class UserRole(StrEnum):
     FAMILY = "family"
@@ -624,9 +634,172 @@ class GameRunOut(BaseModel):
     id: int
     game_id: int
     child_id: uuid.UUID
-    score: int
-    duration_seconds: int
+    score: int | None
+    duration_seconds: int | None
     created_at: datetime
+    status: RunTraceStatus = RunTraceStatus.STARTED
+    glyph_set_id: int | None = None
+    glyph_set_version: str | None = None
+    glyph_set_sha256: str | None = None
+    threshold: int | None = None
+    contact_mode: ContactMode | None = None
+    pause_grace_ms: int | None = None
+    scoring_version: int | None = None
+    schema_version: int | None = None
+    effective_config: dict[str, object] | None = None
+    idempotency_key: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    last_activity_at: datetime | None = None
+    evidence: TraceEvidence | None = None
+    evidence_sha256: str | None = None
+    evidence_version: int | None = None
+
+
+class GlyphSetStatus(StrEnum):
+    ACTIVE = "active"
+    RETIRED = "retired"
+
+
+class GlyphSetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    version: str
+    artifact_path: str
+    artifact_sha256: str
+    geometry: dict[str, object]
+    immutable: bool
+    status: GlyphSetStatus
+    created_at: datetime
+    retired_at: datetime | None = None
+
+
+class TraceDefaults(BaseModel):
+    """Game policy with the same bounds enforced by the database."""
+
+    threshold: int = Field(default=70, ge=0, le=100)
+    contact_mode: ContactMode = ContactMode.STRICT_CONTINUOUS
+    pause_grace_ms: int = Field(default=DEFAULT_PAUSE_GRACE_MS, ge=0, le=MAX_PAUSE_GRACE_MS)
+    glyph_set_id: int = Field(ge=1)
+    glyph_set_version: str = Field(min_length=1, max_length=120)
+    glyph_set_sha256: str = Field(min_length=64, max_length=64)
+    scoring_version: int = Field(default=TRACE_SCORING_VERSION, ge=1)
+    schema_version: int = Field(default=TRACE_SCHEMA_VERSION, ge=1)
+
+
+class GameDefaultsOut(TraceDefaults):
+    model_config = ConfigDict(from_attributes=True)
+
+    game_id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssignmentTraceOverrides(BaseModel):
+    """Nullable fields allow each assignment policy to inherit independently."""
+
+    glyph_set_id_override: int | None = Field(default=None, ge=1)
+    threshold_override: int | None = Field(default=None, ge=0, le=100)
+    contact_mode_override: ContactMode | None = None
+    pause_grace_ms_override: int | None = Field(default=None, ge=0, le=MAX_PAUSE_GRACE_MS)
+
+
+class GameRunEvidenceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    evidence: TraceEvidence
+    evidence_sha256: str
+    evidence_version: int
+    glyph_set_id: int
+    glyph_set_version: str
+    glyph_set_sha256: str
+
+
+class GameRunTraceRecord(BaseModel):
+    """Backend persistence contract; it is not wired to an access route in C1-C3."""
+
+    game_id: int
+    child_id: uuid.UUID
+    status: RunTraceStatus = RunTraceStatus.STARTED
+    glyph_set_id: int | None = Field(default=None, ge=1)
+    glyph_set_version: str | None = None
+    glyph_set_sha256: str | None = None
+    threshold: int | None = Field(default=None, ge=0, le=100)
+    contact_mode: ContactMode | None = None
+    pause_grace_ms: int | None = Field(default=None, ge=0, le=MAX_PAUSE_GRACE_MS)
+    scoring_version: int | None = Field(default=None, ge=1)
+    schema_version: int | None = Field(default=None, ge=1)
+    effective_config: TraceDefaults | None = None
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=160)
+    score: int | None = Field(default=None, ge=0, le=100)
+    duration_seconds: int | None = Field(default=None, ge=0)
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    last_activity_at: datetime | None = None
+    evidence: TraceEvidence | None = None
+    evidence_sha256: str | None = None
+    evidence_version: int | None = None
+
+    @model_validator(mode="after")
+    def _evidence_identity(self) -> Self:
+        if self.status is not RunTraceStatus.LEGACY and self.effective_config is None:
+            raise ValueError("effective_config is required for non-legacy runs")
+        if self.status is not RunTraceStatus.LEGACY and self.effective_config is not None:
+            config = self.effective_config
+            snapshot = {
+                "glyph_set_id": self.glyph_set_id,
+                "glyph_set_version": self.glyph_set_version,
+                "glyph_set_sha256": self.glyph_set_sha256,
+                "threshold": self.threshold,
+                "contact_mode": self.contact_mode,
+                "pause_grace_ms": self.pause_grace_ms,
+                "scoring_version": self.scoring_version,
+                "schema_version": self.schema_version,
+            }
+            expected = {
+                "glyph_set_id": config.glyph_set_id,
+                "glyph_set_version": config.glyph_set_version,
+                "glyph_set_sha256": config.glyph_set_sha256,
+                "threshold": config.threshold,
+                "contact_mode": config.contact_mode,
+                "pause_grace_ms": config.pause_grace_ms,
+                "scoring_version": config.scoring_version,
+                "schema_version": config.schema_version,
+            }
+            if any(snapshot[field] is None for field in expected):
+                raise ValueError("effective configuration snapshot is incomplete")
+            if snapshot != expected:
+                raise ValueError("effective configuration snapshot does not match its fields")
+        if self.evidence is not None:
+            if self.evidence_sha256 is None or self.evidence_version is None:
+                raise ValueError("evidence hash and version are required with evidence")
+            if self.glyph_set_version is None or self.glyph_set_sha256 is None:
+                raise ValueError("glyph set version and hash are required with evidence")
+            if self.evidence_version != self.evidence.schema_version:
+                raise ValueError("evidence_version must match evidence.schema_version")
+            if self.glyph_set_version != self.evidence.artifact_version:
+                raise ValueError("glyph_set_version must match evidence artifact_version")
+            if self.glyph_set_sha256 != self.evidence.artifact_sha256:
+                raise ValueError("glyph_set_sha256 must match evidence artifact_sha256")
+            if (
+                self.glyph_set_id is not None
+                and self.evidence.glyph_set_id is not None
+                and self.glyph_set_id != self.evidence.glyph_set_id
+            ):
+                raise ValueError("glyph_set_id must match evidence.glyph_set_id")
+            if (
+                self.effective_config is not None
+                and self.evidence.pause_grace_ms != self.effective_config.pause_grace_ms
+            ):
+                raise ValueError("pause_grace_ms must match effective_config")
+        if (
+            self.effective_config is not None
+            and self.glyph_set_id is not None
+            and self.effective_config.glyph_set_id != self.glyph_set_id
+        ):
+            raise ValueError("glyph_set_id must match effective_config.glyph_set_id")
+        return self
 
 
 class PinRequest(BaseModel):
