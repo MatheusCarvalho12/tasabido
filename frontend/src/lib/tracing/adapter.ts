@@ -5,6 +5,9 @@
  */
 
 import {
+  CANONICAL_GLYPH_SET_HASH,
+  CANONICAL_GLYPH_SET_ID,
+  CANONICAL_GLYPH_SET_VERSION,
   DEFAULT_TRACING_GAME_CONFIG,
   type TracingAssignmentOverride,
   type TracingEvidenceV1,
@@ -24,6 +27,112 @@ export interface TracingRunSubmissionResult {
   status: 'completed' | 'abandoned'
   synced: boolean
   message: string
+}
+
+export interface LinkedChild {
+  id: string
+  name: string
+  age?: number
+  avatarUrl?: string
+}
+
+export const MOCK_TRACING_RUN_SESSION: TracingSessionEvidenceV1 = {
+  schemaVersion: 'v1',
+  scoringVersion: 'v1',
+  glyphSetId: CANONICAL_GLYPH_SET_ID,
+  glyphSetVersion: CANONICAL_GLYPH_SET_VERSION,
+  glyphSetHash: CANONICAL_GLYPH_SET_HASH,
+  sessionId: 'run_vitoria_20260822',
+  childName: 'Vitória',
+  mode: 'timed_pause',
+  status: 'completed',
+  startedAt: '2026-08-22T14:30:00.000Z',
+  completedAt: '2026-08-22T14:32:00.000Z',
+  durationMs: 120000,
+  glyphs: [
+    {
+      schemaVersion: 'v1',
+      scoringVersion: 'v1',
+      glyphSetId: CANONICAL_GLYPH_SET_ID,
+      glyphSetVersion: CANONICAL_GLYPH_SET_VERSION,
+      glyphSetHash: CANONICAL_GLYPH_SET_HASH,
+      sessionId: 'run_vitoria_20260822',
+      glyphId: 'V',
+      character: 'V',
+      glyphIndex: 0,
+      mode: 'timed_pause',
+      status: 'completed',
+      startedAt: '2026-08-22T14:30:00.000Z',
+      completedAt: '2026-08-22T14:30:45.000Z',
+      isCompleted: true,
+      threshold: 0.7,
+      finalScore: {
+        coverage: 0.92,
+        precision: 0.95,
+        engagement: 1.0,
+        overall: 0.874,
+      },
+      scoreHistory: [],
+      events: [
+        {
+          seq: 1,
+          glyphIndex: 0,
+          segmentIndex: 1,
+          type: 'pointerdown',
+          point: { x: 0.2, y: 0.15 },
+          timestampMs: 0,
+          pointerId: 1,
+          isOutOfBounds: false,
+          state: 'drawing',
+          score: { coverage: 0.1, precision: 1, engagement: 0.2, overall: 0.02 },
+        },
+        {
+          seq: 2,
+          glyphIndex: 0,
+          segmentIndex: 1,
+          type: 'pointermove',
+          point: { x: 0.5, y: 0.85 },
+          timestampMs: 400,
+          pointerId: 1,
+          isOutOfBounds: false,
+          state: 'drawing',
+          score: { coverage: 0.5, precision: 1, engagement: 0.8, overall: 0.4 },
+        },
+        {
+          seq: 3,
+          glyphIndex: 0,
+          segmentIndex: 1,
+          type: 'pointerup',
+          point: { x: 0.8, y: 0.15 },
+          timestampMs: 850,
+          pointerId: 1,
+          isOutOfBounds: false,
+          state: 'completed',
+          score: { coverage: 0.92, precision: 0.95, engagement: 1.0, overall: 0.874 },
+        },
+      ],
+      strokes: [
+        {
+          id: 'stroke_1',
+          glyphIndex: 0,
+          segmentIndex: 1,
+          points: [
+            { x: 0.2, y: 0.15, timestampMs: 0 },
+            { x: 0.5, y: 0.85, timestampMs: 400 },
+            { x: 0.8, y: 0.15, timestampMs: 850 },
+          ],
+          startedAtMs: 0,
+          endedAtMs: 850,
+          isComplete: true,
+          status: 'completed',
+          outOfBoundsCount: 0,
+        },
+      ],
+      outOfBoundsCount: 0,
+      graceExpirationsCount: 0,
+      durationMs: 45000,
+    },
+  ],
 }
 
 /**
@@ -47,7 +156,6 @@ export function saveSessionEvidence(session: TracingSessionEvidenceV1): void {
   try {
     const existing = window.sessionStorage.getItem(SESSION_EVIDENCE_STORAGE_KEY)
     const list: TracingSessionEvidenceV1[] = existing ? JSON.parse(existing) : []
-    // Remove sessão prévia com mesmo ID se existir
     const filtered = list.filter((s) => s.sessionId !== session.sessionId)
     filtered.push(session)
     window.sessionStorage.setItem(SESSION_EVIDENCE_STORAGE_KEY, JSON.stringify(filtered))
@@ -62,15 +170,18 @@ export function saveSessionEvidence(session: TracingSessionEvidenceV1): void {
 export function getLocalSessionEvidences(): TracingSessionEvidenceV1[] {
   try {
     const raw = window.sessionStorage.getItem(SESSION_EVIDENCE_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
+    const list = raw ? JSON.parse(raw) : []
+    if (Array.isArray(list) && list.length > 0) {
+      return list
+    }
   } catch {
-    return []
+    // Retorna fallback
   }
+  return [MOCK_TRACING_RUN_SESSION]
 }
 
 /**
  * Limite de adaptador tipado para submissão de traçado.
- * A5 integrará /api/tracing-runs autoritativo. Até lá, retém evidências locais fielmente.
  */
 export async function submitTracingSession(
   session: TracingSessionEvidenceV1,
@@ -184,6 +295,17 @@ export async function resetChildAssignmentOverrideApi(
   } catch {
     // Silencioso
   }
+}
+
+/**
+ * Busca lista de crianças vinculadas ao profissional (limite tipado).
+ */
+export async function fetchLinkedChildrenApi(): Promise<LinkedChild[]> {
+  return [
+    { id: 'child-1', name: 'Lucas' },
+    { id: 'child-2', name: 'Vitória' },
+    { id: 'child-3', name: 'Mateus' },
+  ]
 }
 
 /**

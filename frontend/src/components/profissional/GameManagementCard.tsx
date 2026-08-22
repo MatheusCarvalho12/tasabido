@@ -1,4 +1,4 @@
-import { EyeSlash, PaperPlaneTilt, PencilSimple } from '@phosphor-icons/react'
+import { EyeSlash, PaperPlaneTilt, PencilSimple, SlidersHorizontal } from '@phosphor-icons/react'
 
 import { GameThumb } from '@/components/shared/GameThumb'
 import { categoriaLabel } from '@/lib/games'
@@ -10,6 +10,8 @@ export interface GameManagementCardProps {
   onEdit: (game: Game) => void
   /** Publica (draft → published) ou despublica (published → draft). */
   onToggleStatus: (game: Game) => void
+  /** Abre o modal de personalização de parâmetros de traçado por criança. */
+  onCustomizeForChild?: (game: Game) => void
   /** Flag de requisição em andamento (desabilita os botões). */
   busy?: boolean
 }
@@ -18,12 +20,13 @@ export interface GameManagementCardProps {
  * Card de gestão do profissional (referência home-profissional-biblioteca):
  * thumbnail real (thumb_url; fallback: SVG sobre cores[0]; sem arte: título
  * em destaque), título, stats reais do contrato, pill de status
- * (Publicado turquesa / Rascunho amarelo) e ações Editar + Publicar/Despublicar.
+ * (Publicado turquesa / Rascunho amarelo) e ações Editar + Personalizar + Publicar/Despublicar.
  */
 export function GameManagementCard({
   game,
   onEdit,
   onToggleStatus,
+  onCustomizeForChild,
   busy,
 }: GameManagementCardProps) {
   const published = game.status === 'published'
@@ -66,16 +69,29 @@ export function GameManagementCard({
           </div>
         </dl>
 
-        <div className="mt-1 flex items-center gap-2">
+        <div className="mt-1 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => onEdit(game)}
             disabled={busy}
-            className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full bg-blue px-4 text-sm font-bold text-white shadow-clay-btn transition-[transform,box-shadow] hover:-translate-y-0.5 active:translate-y-0 disabled:pointer-events-none disabled:opacity-60 sm:flex-none sm:px-6"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full bg-blue px-4 text-sm font-bold text-white shadow-clay-btn transition-[transform,box-shadow] hover:-translate-y-0.5 active:translate-y-0 disabled:pointer-events-none disabled:opacity-60 sm:flex-none sm:px-5"
           >
             <PencilSimple weight="bold" aria-hidden="true" className="size-4" />
             Editar
           </button>
+
+          {onCustomizeForChild && (
+            <button
+              type="button"
+              onClick={() => onCustomizeForChild(game)}
+              disabled={busy}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-blue/20 bg-blue/10 px-3 text-xs font-bold text-blue transition-[transform,box-shadow] hover:-translate-y-0.5 hover:bg-blue/20 active:translate-y-0 disabled:pointer-events-none disabled:opacity-60 sm:px-4 sm:text-sm"
+            >
+              <SlidersHorizontal weight="bold" aria-hidden="true" className="size-4" />
+              <span>Ajustar por criança</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => onToggleStatus(game)}

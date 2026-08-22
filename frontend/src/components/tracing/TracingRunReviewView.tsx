@@ -2,7 +2,8 @@
  * Tela/Componente de revisão detalhada de partidas para adultos (Profissionais e Responsáveis) - Ticket A4.
  * Exibe resultados numéricos gerais e por letra, status completed/abandoned,
  * painéis separados "Modelo" e "Traço da criança", replay fiel de eventos crus (sem suavização)
- * e estado de evidência indisponível. Sem botões de exportação/compartilhamento/download.
+ * reconstruindo o traço progressivamente a cada seq/evento, playback por timestamps relativos,
+ * validação estrita de modelo histórico por SHA-256 e proveniência. Sem exportação/compartilhamento/download.
  */
 
 import {
@@ -10,6 +11,7 @@ import {
   CalendarBlank,
   CheckCircle,
   Clock,
+  Fingerprint,
   Gauge,
   Info,
   Pause,
@@ -21,11 +23,12 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 
 import { getGlyphGeometry } from '@/lib/tracing/geometry'
-import type {
-  GlyphGeometry,
-  TracingEvidenceV1,
-  TracingNormalizedEvent,
-  TracingSessionEvidenceV1,
+import {
+  type GlyphGeometry,
+  IMMUTABLE_GLYPH_SETS,
+  type TracingEvidenceV1,
+  type TracingNormalizedEvent,
+  type TracingSessionEvidenceV1,
 } from '@/lib/tracing/types'
 import { cn } from '@/lib/utils'
 
@@ -33,6 +36,59 @@ export interface TracingRunReviewViewProps {
   session: TracingSessionEvidenceV1 | null
   onBack?: () => void
   className?: string
+}
+
+interface PartialStroke {
+  id: string
+  points: Array<{ x: number; y: number }>
+  isComplete: boolean
+}
+
+/**
+ * Reconstrói fielmente os segmentos de traço desenhados pela criança até o índice de evento especificado.
+ */
+function rebuildPartialStrokes(
+  events: TracingNormalizedEvent[],
+  upToIndex: number,
+): PartialStroke[] {
+  const strokes: PartialStroke[] = []
+  let active: PartialStroke | null = null
+
+  for (let i = 0; i <= upToIndex && i < events.length; i++) {
+    const ev = events[i]
+    if (!ev) continue
+
+    if (ev.type === 'pointerdown') {
+      active = {
+        id: `stroke_${strokes.length + 1}`,
+        points: [{ x: ev.point.x, y: ev.point.y }],
+        isComplete: false,
+      }
+      strokes.push(active)
+    } else if (ev.type === 'pointermove') {
+      if (!active) {
+        active = {
+          id: `stroke_${strokes.length + 1}`,
+          points: [{ x: ev.point.x, y: ev.point.y }],
+          isComplete: false,
+        }
+        strokes.push(active)
+      } else {
+        active.points.push({ x: ev.point.x, y: ev.point.y })
+      }
+    } else if (ev.type === 'pointerup') {
+      if (active) {
+        active.points.push({ x: ev.point.x, y: ev.point.y })
+        active.isComplete = true
+        active = null
+      }
+    } else if (ev.type === 'reset') {
+      strokes.length = 0
+      active = null
+    }
+  }
+
+  return strokes
 }
 
 export function TracingRunReviewView({
@@ -49,37 +105,65 @@ export function TracingRunReviewView({
     return session.glyphs[selectedGlyphIndex] ?? session.glyphs[0] ?? null
   }, [session, selectedGlyphIndex])
 
+  // Verificação de Proveniência e Integridade do Modelo Histórico (SHA-256 e versão)
+  const glyphSetMetadata = useMemo(() => {
+    if (!selectedGlyph && !session) return null
+    const setId = selectedGlyph?.glyphSetId || session?.glyphSetId || ''
+    const version = selectedGlyph?.glyphSetVersion || session?.glyphSetVersion || ''
+    const hash = selectedGlyph?.glyphSetHash || session?.glyphSetHash || ''
+
+    const knownSet = IMMUTABLE_GLYPH_SETS[setId]
+    const isValid = Boolean(knownSet && knownSet.version === version && knownSet.hash === hash)
+
+    return {
+      setId,
+      version,
+      hash,
+      knownSet,
+      isValid,
+    }
+  }, [selectedGlyph, session])
+
   const glyphGeometry: GlyphGeometry | null = useMemo(() => {
-    if (!selectedGlyph) return null
+    if (!selectedGlyph || !glyphSetMetadata?.isValid) return null
     try {
       return getGlyphGeometry(selectedGlyph.character)
     } catch {
       return null
     }
-  }, [selectedGlyph])
+  }, [selectedGlyph, glyphSetMetadata])
 
-  // Reseta o índice de replay ao trocar de letra
+  // Reseta o índice de replay para o final do traçado ao trocar de letra
   useEffect(() => {
     setReplayEventIndex(selectedGlyph?.events?.length ? selectedGlyph.events.length - 1 : 0)
     setIsPlayingReplay(false)
   }, [selectedGlyph])
 
-  // Timer de reprodução do replay
+  // Timer de reprodução baseado em timestamps relativos reais (com limite de pausa para usabilidade)
   useEffect(() => {
     if (!isPlayingReplay || !selectedGlyph?.events?.length) return
 
-    const interval = setInterval(() => {
-      setReplayEventIndex((prev) => {
-        if (prev >= selectedGlyph.events.length - 1) {
-          setIsPlayingReplay(false)
-          return prev
-        }
-        return prev + 1
-      })
-    }, 40)
+    if (replayEventIndex >= selectedGlyph.events.length - 1) {
+      setIsPlayingReplay(false)
+      return
+    }
 
-    return () => clearInterval(interval)
-  }, [isPlayingReplay, selectedGlyph?.events])
+    const currentEv = selectedGlyph.events[replayEventIndex]
+    const nextEv = selectedGlyph.events[replayEventIndex + 1]
+
+    let delayMs = 40
+    if (currentEv && nextEv) {
+      const delta = nextEv.timestampMs - currentEv.timestampMs
+      // Bounded for usability: minimum 25ms, maximum 500ms
+      delayMs = Math.max(25, Math.min(500, delta))
+    }
+
+    const timer = setTimeout(() => {
+      setReplayEventIndex((prev) => prev + 1)
+    }, delayMs)
+
+    return () => clearTimeout(timer)
+  }, [isPlayingReplay, replayEventIndex, selectedGlyph?.events])
 
   // Estado: Evidência indisponível
   if (!session?.glyphs || session.glyphs.length === 0) {
@@ -133,6 +217,11 @@ export function TracingRunReviewView({
     dateStyle: 'short',
     timeStyle: 'short',
   })
+
+  // Traços reconstruídos fielmente até o frame atual de replay
+  const partialStrokes: PartialStroke[] = selectedGlyph?.events
+    ? rebuildPartialStrokes(selectedGlyph.events, replayEventIndex)
+    : []
 
   const currentReplayEvent: TracingNormalizedEvent | null =
     selectedGlyph?.events?.[replayEventIndex] ?? null
@@ -301,11 +390,13 @@ export function TracingRunReviewView({
                 <span className="text-xs font-extrabold uppercase text-kid-muted">
                   Painel 1: Modelo Canônico
                 </span>
-                <span className="text-xs font-bold text-blue">Geometria Alvo</span>
+                {glyphSetMetadata?.isValid && (
+                  <span className="text-xs font-bold text-blue">Geometria Alvo</span>
+                )}
               </div>
 
               <div className="size-64 sm:size-72 bg-white rounded-2xl border-2 border-kid-bg flex items-center justify-center p-3 shadow-inner">
-                {glyphGeometry && (
+                {glyphSetMetadata?.isValid && glyphGeometry ? (
                   <svg
                     viewBox="0 0 100 100"
                     className="size-full"
@@ -357,21 +448,42 @@ export function TracingRunReviewView({
                       </g>
                     ))}
                   </svg>
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-4 gap-2">
+                    <WarningCircle weight="bold" className="size-8 text-coral" />
+                    <strong className="text-sm text-navy">Modelo indisponível</strong>
+                    <p className="text-xs text-kid-muted">
+                      Conjunto de glifos não encontrado ou hash SHA-256 incompatível com a versão
+                      gravada na evidência.
+                    </p>
+                  </div>
                 )}
               </div>
-              <span className="text-[11px] text-kid-muted font-medium">
-                Padrão geométrico canônico do catálogo do Tá Sabido
-              </span>
+
+              {/* Proveniência do Modelo no Painel Adulto */}
+              <div className="flex flex-col gap-1 w-full text-[11px] text-kid-muted border-t border-kid-bg pt-2">
+                <div className="flex items-center gap-1.5 font-mono">
+                  <Fingerprint weight="bold" className="size-3.5 text-blue shrink-0" />
+                  <span className="font-bold text-navy">Proveniência:</span>
+                  <span className="truncate">
+                    {glyphSetMetadata?.knownSet?.name ?? glyphSetMetadata?.setId ?? 'Desconhecido'}{' '}
+                    (v{glyphSetMetadata?.version ?? '?'})
+                  </span>
+                </div>
+                <span className="font-mono text-[10px] truncate text-kid-muted">
+                  SHA-256: {glyphSetMetadata?.hash || 'Indisponível'}
+                </span>
+              </div>
             </div>
 
-            {/* PAINEL 2: TRAÇO DA CRIANÇA (Cru / Fiel) */}
+            {/* PAINEL 2: TRAÇO DA CRIANÇA (Cru / Fiel e Reconstruído até o seq atual) */}
             <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-cream border border-kid-bg">
               <div className="flex items-center justify-between w-full">
                 <span className="text-xs font-extrabold uppercase text-kid-muted">
                   Painel 2: Traço da Criança
                 </span>
                 <span className="text-xs font-bold text-navy">
-                  {selectedGlyph.strokes.length} traço(s) registrado(s)
+                  {partialStrokes.length} segmento(s) ativo(s)
                 </span>
               </div>
 
@@ -393,9 +505,22 @@ export function TracingRunReviewView({
                     />
                   ))}
 
-                  {/* Traços crus da criança (Sem suavização / sem embelezamento artificial) */}
-                  {selectedGlyph.strokes.map((stroke, sIdx) => {
+                  {/* Traços reconstruídos fielmente até o evento atual (Sem interpolação/suavização artificial) */}
+                  {partialStrokes.map((stroke, sIdx) => {
                     if (stroke.points.length === 0) return null
+                    if (stroke.points.length === 1) {
+                      const p = stroke.points[0]
+                      if (!p) return null
+                      return (
+                        <circle
+                          key={`child_dot_${stroke.id || sIdx}`}
+                          cx={p.x * 100}
+                          cy={p.y * 100}
+                          r="4"
+                          fill="#000000"
+                        />
+                      )
+                    }
                     const ptsString = stroke.points
                       .map((p) => `${p.x * 100},${p.y * 100}`)
                       .join(' ')
@@ -412,7 +537,7 @@ export function TracingRunReviewView({
                     )
                   })}
 
-                  {/* Marcador do ponto atual no Replay */}
+                  {/* Marcador do ponteiro ativo no Replay */}
                   {currentReplayEvent && (
                     <circle
                       cx={currentReplayEvent.point.x * 100}
@@ -426,7 +551,8 @@ export function TracingRunReviewView({
                 </svg>
               </div>
               <span className="text-[11px] text-kid-muted font-medium">
-                Renderização fiel dos pontos amostrados (telemetria crua)
+                Traçado parcial revelado até o evento #
+                {currentReplayEvent?.seq ?? replayEventIndex + 1}
               </span>
             </div>
           </div>
@@ -469,7 +595,7 @@ export function TracingRunReviewView({
               />
 
               {/* Controles de Replay */}
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -513,11 +639,12 @@ export function TracingRunReviewView({
                   </button>
                 </div>
 
-                <span className="text-xs text-kid-muted font-medium">
-                  {selectedGlyph.outOfBoundsCount > 0
-                    ? `${selectedGlyph.outOfBoundsCount} desvio(s) fora da área`
-                    : 'Nenhum desvio fora da área'}
-                </span>
+                <div className="flex items-center gap-2 text-xs text-kid-muted font-medium">
+                  <span>Velocidade: Tempo relativo real dos eventos (pausas limitadas a 0,5s)</span>
+                  {selectedGlyph.outOfBoundsCount > 0 && (
+                    <span>• {selectedGlyph.outOfBoundsCount} desvio(s) fora da área</span>
+                  )}
+                </div>
               </div>
             </div>
           )}

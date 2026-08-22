@@ -1,282 +1,248 @@
 /**
- * Seção de configuração do comportamento do traçado para o formulário de jogos (Ticket A4).
- * Contém seletor do conjunto imutável de glifos com preview, limiar de pontuação (padrão 70),
- * três modos de contato e opções de pausa (0s, 1s, 1.5s padrão, 2s, 3s).
+ * Seção de configuração de comportamento de traçado para o formulário do jogo (Ticket A4).
+ * Segue o contrato do produto:
+ * - Conjuntos de glifos atômicos e imutáveis com ID, versão e hash SHA-256 (nunca letras parciais individuais).
+ * - Pré-visualização de amostra puramente para inspeção visual (não altera o conjunto).
+ * - Modos de contato com semântica de radio nativa acessível.
+ * - Limiar de precisão de 0 a 100 com padrão 70.
+ * - Prazos de pausa de 0s a 3s com padrão 1,5s claramente identificado.
  */
 
 import {
-  Check,
   CheckCircle,
+  Clock,
   Eye,
-  HandTap,
+  type HandPointing,
   PencilSimple,
   SlidersHorizontal,
-  Timer,
+  Sparkle,
 } from '@phosphor-icons/react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import { getGlyphGeometry, IMMUTABLE_GLYPH_CATALOG_KEYS } from '@/lib/tracing/geometry'
-import type { GlyphGeometry, TracingGameConfig, TracingMode } from '@/lib/tracing/types'
+import {
+  CANONICAL_GLYPH_SET_ID,
+  DEFAULT_TRACING_GAME_CONFIG,
+  type GlyphSetDefinition,
+  IMMUTABLE_GLYPH_SETS,
+  type TracingGameConfig,
+  type TracingMode,
+} from '@/lib/tracing/types'
 import { cn } from '@/lib/utils'
 
 export interface TracingBehaviorSectionProps {
-  config: TracingGameConfig
-  onChange: (nextConfig: TracingGameConfig) => void
-  error?: string | null
+  config?: TracingGameConfig
+  onChange: (config: TracingGameConfig) => void
+  disabled?: boolean
 }
 
 const MODOS_CONTATO: Array<{
-  value: TracingMode
-  label: string
-  desc: string
-  icon: typeof PencilSimple
+  id: TracingMode
+  title: string
+  description: string
+  icon: typeof HandPointing
 }> = [
   {
-    value: 'strict_continuous',
-    label: 'Contínuo estrito',
-    desc: 'Exige traço contínuo sem soltar o dedo até concluir a letra.',
+    id: 'strict_continuous',
+    title: 'Contínuo estrito',
+    description: 'Exige traço contínuo sem soltar o dedo até concluir a letra.',
     icon: PencilSimple,
   },
   {
-    value: 'timed_pause',
-    label: 'Pausa com prazo',
-    desc: 'Permite soltar o dedo temporariamente durante o prazo de tolerância.',
-    icon: Timer,
+    id: 'timed_pause',
+    title: 'Pausa com prazo',
+    description: 'Permite soltar o dedo temporariamente durante o prazo de tolerância.',
+    icon: Clock,
   },
   {
-    value: 'free',
-    label: 'Livre',
-    desc: 'Acumula o traçado através de múltiplos toques sem contagem regressiva.',
-    icon: HandTap,
+    id: 'free',
+    title: 'Livre',
+    description: 'Acumula o traçado entre múltiplos toques sem resetar ao soltar.',
+    icon: Sparkle,
   },
 ]
 
-const OPCOES_PAUSA: Array<{ seconds: number; label: string; isDefault?: boolean }> = [
-  { seconds: 0, label: '0s (imediato)' },
-  { seconds: 1.0, label: '1s' },
-  { seconds: 1.5, label: '1,5s (padrão)', isDefault: true },
-  { seconds: 2.0, label: '2s' },
-  { seconds: 3.0, label: '3s' },
+const PRAZOS_PAUSA: Array<{ value: number; label: string }> = [
+  { value: 0, label: '0s (imediato)' },
+  { value: 1.0, label: '1s' },
+  { value: 1.5, label: '1,5s (padrão)' },
+  { value: 2.0, label: '2s' },
+  { value: 3.0, label: '3s' },
 ]
 
-export function TracingBehaviorSection({ config, onChange, error }: TracingBehaviorSectionProps) {
-  const [previewChar, setPreviewChar] = useState<string>(config.allowedGlyphs[0] ?? 'A')
+export function TracingBehaviorSection({
+  config = DEFAULT_TRACING_GAME_CONFIG,
+  onChange,
+  disabled = false,
+}: TracingBehaviorSectionProps) {
+  // Letra selecionada estritamente para inspeção visual do traçado
+  const [inspectionChar, setInspectionChar] = useState<string>('A')
 
-  const previewGeometry: GlyphGeometry | null = useMemo(() => {
-    try {
-      return getGlyphGeometry(previewChar)
-    } catch {
-      return null
+  const availableSets = Object.values(IMMUTABLE_GLYPH_SETS)
+  const defaultSet = IMMUTABLE_GLYPH_SETS[CANONICAL_GLYPH_SET_ID]
+  const currentSet: GlyphSetDefinition = IMMUTABLE_GLYPH_SETS[config.glyphSetId] ??
+    defaultSet ?? {
+      id: CANONICAL_GLYPH_SET_ID,
+      name: 'Maiúsculas bloco',
+      version: '1.0.0',
+      hash: '',
+      description: '',
+      glyphCount: 39,
+      glyphs: [],
     }
-  }, [previewChar])
 
-  const toggleGlyph = (char: string) => {
-    const isSelected = config.allowedGlyphs.includes(char)
-    let nextAllowed: string[]
-    if (isSelected) {
-      if (config.allowedGlyphs.length <= 1) {
-        return // Mantém ao menos um glifo selecionado
-      }
-      nextAllowed = config.allowedGlyphs.filter((c) => c !== char)
-    } else {
-      nextAllowed = [...config.allowedGlyphs, char]
-    }
-    onChange({ ...config, allowedGlyphs: nextAllowed })
-  }
-
-  const selectAllGlyphs = () => {
-    onChange({ ...config, allowedGlyphs: [...IMMUTABLE_GLYPH_CATALOG_KEYS] })
-  }
-
-  const clearNonVowels = () => {
-    const vowels = ['A', 'E', 'I', 'O', 'U', 'Á', 'É', 'Í', 'Ó', 'Ú']
+  const handleSetChange = (setId: string) => {
+    const setDef = IMMUTABLE_GLYPH_SETS[setId]
+    if (!setDef) return
     onChange({
       ...config,
-      allowedGlyphs: IMMUTABLE_GLYPH_CATALOG_KEYS.filter((c) => vowels.includes(c)),
+      glyphSetId: setDef.id,
+      glyphSetVersion: setDef.version,
+      glyphSetHash: setDef.hash,
     })
   }
 
+  const handleModeChange = (mode: TracingMode) => {
+    onChange({
+      ...config,
+      mode,
+    })
+  }
+
+  const handleGraceChange = (graceDurationSeconds: number) => {
+    onChange({
+      ...config,
+      graceDurationSeconds,
+    })
+  }
+
+  const handleThresholdChange = (completionThreshold: number) => {
+    onChange({
+      ...config,
+      completionThreshold,
+    })
+  }
+
+  const previewGeometry = getGlyphGeometry(inspectionChar)
+
   return (
-    <div className="rounded-3xl border-2 border-kid-bg bg-kid-card/40 p-5 sm:p-6 flex flex-col gap-6 shadow-sm">
+    <section
+      aria-labelledby="tracing-behavior-title"
+      className="rounded-3xl border-2 border-kid-bg bg-kid-card/40 p-5 sm:p-6 flex flex-col gap-6 shadow-sm"
+    >
+      {/* Cabeçalho da Seção */}
       <div className="flex items-center gap-3 border-b border-kid-bg pb-3">
         <div className="grid size-10 place-items-center rounded-2xl bg-blue/15 text-blue shadow-sm">
           <SlidersHorizontal weight="bold" className="size-6" />
         </div>
         <div>
-          <h2 className="text-lg sm:text-xl font-extrabold text-navy">Comportamento do traçado</h2>
+          <h2 id="tracing-behavior-title" className="text-lg sm:text-xl font-extrabold text-navy">
+            Comportamento do traçado
+          </h2>
           <p className="text-xs sm:text-sm text-kid-muted font-medium">
-            Parâmetros de precisão, modos de contato e letras disponíveis para o exercício
+            Parâmetros de precisão, modos de contato e conjunto canônico de letras
           </p>
         </div>
       </div>
 
-      {/* 1. Modo de Contato */}
+      {/* 1. Seleção do Conjunto Completo e Atômico de Glifos */}
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-sm font-bold text-navy">Modo de contato</legend>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {MODOS_CONTATO.map((m) => {
-            const isSelected = config.mode === m.value
-            const Icon = m.icon
+        <div className="flex items-center justify-between">
+          <legend className="text-sm font-bold text-navy">
+            Conjunto de letras e estilo (Catálogo atômico)
+          </legend>
+          <span className="text-xs font-bold text-blue bg-blue/15 px-2.5 py-0.5 rounded-full">
+            {currentSet.glyphCount} caracteres
+          </span>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-1">
+          {availableSets.map((setDef) => {
+            const isSelected = config.glyphSetId === setDef.id
             return (
-              <button
-                key={m.value}
-                type="button"
-                onClick={() => onChange({ ...config, mode: m.value })}
-                aria-pressed={isSelected}
+              <label
+                key={setDef.id}
                 className={cn(
-                  'flex flex-col items-start gap-2 rounded-2xl p-4 text-left border-2 transition-all',
+                  'flex flex-col gap-2 rounded-2xl p-4 text-left border-2 transition-all cursor-pointer relative',
                   isSelected
                     ? 'border-blue bg-blue/10 shadow-clay-sm text-navy'
                     : 'border-kid-bg bg-white hover:border-blue/30 text-navy',
                 )}
               >
+                <input
+                  type="radio"
+                  name="glyphSetRadio"
+                  value={setDef.id}
+                  checked={isSelected}
+                  disabled={disabled}
+                  onChange={() => handleSetChange(setDef.id)}
+                  className="sr-only"
+                />
                 <div className="flex items-center justify-between w-full">
-                  <div
-                    className={cn(
-                      'size-8 rounded-xl flex items-center justify-center',
-                      isSelected ? 'bg-blue text-white' : 'bg-kid-bg text-navy',
-                    )}
-                  >
-                    <Icon weight="bold" className="size-4" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-extrabold">{setDef.name}</span>
+                    <span className="text-xs font-bold text-kid-muted">v{setDef.version}</span>
                   </div>
                   {isSelected && <CheckCircle weight="fill" className="size-5 text-blue" />}
                 </div>
-                <span className="text-sm font-extrabold">{m.label}</span>
-                <span className="text-xs text-kid-muted font-medium leading-snug">{m.desc}</span>
-              </button>
+
+                <p className="text-xs text-kid-muted font-medium">{setDef.description}</p>
+
+                <div className="flex items-center gap-2 text-[11px] font-mono text-kid-muted pt-1 border-t border-kid-bg/60">
+                  <span className="font-bold">SHA-256:</span>
+                  <span className="truncate">{setDef.hash}</span>
+                </div>
+              </label>
             )
           })}
         </div>
       </fieldset>
 
-      {/* 2. Opções de Prazo de Pausa (Quando modo é timed_pause) */}
-      {config.mode === 'timed_pause' && (
-        <fieldset className="flex flex-col gap-2 bg-white/70 p-4 rounded-2xl border border-kid-bg">
-          <legend className="text-sm font-bold text-navy">Prazo de tolerância de pausa</legend>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {OPCOES_PAUSA.map((opt) => {
-              const isSelected = config.graceDurationSeconds === opt.seconds
-              return (
-                <button
-                  key={opt.seconds}
-                  type="button"
-                  onClick={() => onChange({ ...config, graceDurationSeconds: opt.seconds })}
-                  aria-pressed={isSelected}
-                  className={cn(
-                    'h-10 px-4 rounded-full text-xs sm:text-sm font-bold transition-all',
-                    isSelected
-                      ? 'bg-blue text-white shadow-clay-sm'
-                      : 'bg-kid-bg text-navy hover:bg-border',
-                  )}
-                >
-                  {opt.label}
-                </button>
-              )
-            })}
-          </div>
-          <p className="text-xs text-kid-muted font-medium mt-1">
-            Tempo em segundos que a criança pode ficar sem tocar na tela antes de reiniciar o
-            traçado.
-          </p>
-        </fieldset>
-      )}
-
-      {/* 3. Limiar de Conclusão (Threshold) */}
-      <div className="flex flex-col gap-2">
+      {/* 2. Pré-visualização da Amostra (Apenas para inspeção visual; não altera o conjunto) */}
+      <div className="flex flex-col gap-3 p-4 rounded-2xl bg-white border border-kid-bg">
         <div className="flex items-center justify-between">
-          <label htmlFor="tracing-threshold-input" className="text-sm font-bold text-navy">
-            Limiar de precisão para conclusão
-          </label>
-          <span className="text-sm font-extrabold text-blue bg-blue/15 px-3 py-1 rounded-full">
-            {config.completionThreshold}% {config.completionThreshold === 70 && '(padrão)'}
+          <div className="flex items-center gap-2">
+            <Eye weight="bold" className="size-4 text-blue" />
+            <span className="text-xs font-extrabold uppercase text-navy">
+              Inspeção visual de amostra
+            </span>
+          </div>
+          <span className="text-[11px] text-kid-muted font-medium">
+            Letra em inspeção: <strong className="text-navy">{inspectionChar}</strong>
           </span>
         </div>
 
-        <input
-          id="tracing-threshold-input"
-          type="range"
-          min="40"
-          max="95"
-          step="5"
-          value={config.completionThreshold}
-          onChange={(e) =>
-            onChange({
-              ...config,
-              completionThreshold: Number(e.target.value),
-            })
-          }
-          className="w-full h-2 bg-kid-bg rounded-lg appearance-none cursor-pointer accent-blue"
-        />
-        <div className="flex justify-between text-[11px] font-bold text-kid-muted px-1">
-          <span>Mais tolerante (40%)</span>
-          <span className="text-blue font-black">Recomendado (70%)</span>
-          <span>Mais rigoroso (95%)</span>
-        </div>
-      </div>
+        <p className="text-xs text-kid-muted">
+          A escolha abaixo serve exclusivamente para auditar visualmente a geometria do traçado no
+          painel de preview e não altera a composição do conjunto atômico.
+        </p>
 
-      {/* 4. Seletor do Catálogo Imutável de Glifos + Pré-visualização */}
-      <fieldset className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <legend className="text-sm font-bold text-navy">
-            Letras permitidas no exercício ({config.allowedGlyphs.length} de{' '}
-            {IMMUTABLE_GLYPH_CATALOG_KEYS.length})
-          </legend>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={selectAllGlyphs}
-              className="text-xs font-bold text-blue hover:underline"
-            >
-              Selecionar todas
-            </button>
-            <span className="text-kid-muted text-xs">•</span>
-            <button
-              type="button"
-              onClick={clearNonVowels}
-              className="text-xs font-bold text-blue hover:underline"
-            >
-              Apenas vogais
-            </button>
-          </div>
-        </div>
-
-        {/* Grade com os 39 caracteres do catálogo canônico imutável */}
-        <div className="grid grid-cols-7 sm:grid-cols-10 md:grid-cols-13 gap-1.5 p-3 rounded-2xl bg-white border border-kid-bg max-h-48 overflow-y-auto">
+        {/* Seletor de letra para inspeção visual */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
           {IMMUTABLE_GLYPH_CATALOG_KEYS.map((char) => {
-            const isSelected = config.allowedGlyphs.includes(char)
-            const isPreviewing = previewChar === char
+            const isInspecting = inspectionChar === char
             return (
               <button
-                key={char}
+                key={`inspect_${char}`}
                 type="button"
-                onClick={() => {
-                  toggleGlyph(char)
-                  setPreviewChar(char)
-                }}
-                aria-pressed={isSelected}
+                onClick={() => setInspectionChar(char)}
+                disabled={disabled}
                 className={cn(
-                  'relative size-9 rounded-xl font-black text-sm flex items-center justify-center transition-all',
-                  isSelected
-                    ? 'bg-blue text-white shadow-sm'
-                    : 'bg-kid-bg/60 text-kid-muted hover:bg-kid-bg',
-                  isPreviewing && 'ring-2 ring-navy ring-offset-1',
+                  'size-8 rounded-lg text-xs font-black transition-all shrink-0 flex items-center justify-center',
+                  isInspecting
+                    ? 'bg-blue text-white shadow-clay-sm ring-2 ring-blue/20'
+                    : 'bg-kid-bg/60 text-navy hover:bg-kid-bg',
                 )}
               >
                 {char}
-                {isSelected && (
-                  <Check
-                    weight="bold"
-                    className="absolute -top-1 -right-1 size-3 text-white bg-navy rounded-full p-0.5"
-                  />
-                )}
               </button>
             )
           })}
         </div>
 
-        {/* Pré-visualização da Geometria da Letra Selecionada */}
+        {/* Pré-visualização da Geometria da Letra Inspecionada */}
         {previewGeometry && (
-          <div className="flex items-center gap-4 p-3 rounded-2xl bg-white border border-kid-bg">
+          <div className="flex items-center gap-4 p-3 rounded-2xl bg-cream border border-kid-bg mt-1">
             <div className="size-20 rounded-xl bg-white border-2 border-kid-bg flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
               <svg
                 viewBox="0 0 100 100"
@@ -288,14 +254,15 @@ export function TracingBehaviorSection({ config, onChange, error }: TracingBehav
                     key={`pv_bg_${s.id}`}
                     d={s.pathData}
                     fill="none"
-                    stroke="#e5e5e5"
-                    strokeWidth="16"
+                    stroke="#e8edf5"
+                    strokeWidth="18"
                     strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
                 ))}
                 {previewGeometry.strokes.map((s) => (
                   <path
-                    key={`pv_center_${s.id}`}
+                    key={`pv_fg_${s.id}`}
                     d={s.pathData}
                     fill="none"
                     stroke="#000000"
@@ -314,32 +281,132 @@ export function TracingBehaviorSection({ config, onChange, error }: TracingBehav
                 ))}
               </svg>
             </div>
-            <div className="flex flex-col gap-0.5">
-              <div className="flex items-center gap-1.5">
-                <Eye weight="bold" className="size-4 text-blue" />
-                <span className="text-xs font-extrabold text-navy uppercase">
-                  Pré-visualização: {previewGeometry.label}
-                </span>
-              </div>
-              <span className="text-xs text-kid-muted font-medium">
-                {previewGeometry.strokes.length} traço(s) guia • Tolerância:{' '}
+            <div className="flex flex-col gap-0.5 text-xs text-navy">
+              <span className="font-black text-sm text-blue">
+                Pré-visualização: Letra {previewGeometry.character}
+              </span>
+              <span className="text-kid-muted font-medium">
+                {previewGeometry.strokes.length} segmento(s) de traço • Tolerância padrão:{' '}
                 {Math.round(previewGeometry.toleranceRadius * 100)}%
               </span>
               <span className="text-[11px] text-kid-muted">
-                {config.allowedGlyphs.includes(previewChar)
-                  ? 'Ativa para este jogo'
-                  : 'Desativada (não aparecerá)'}
+                Início guiado por ponto preto sólido
               </span>
             </div>
           </div>
         )}
+      </div>
+
+      {/* 3. Modo de Contato (Radiogroup semântico nativo) */}
+      <fieldset className="flex flex-col gap-3">
+        <legend className="text-sm font-bold text-navy">Modo de contato</legend>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {MODOS_CONTATO.map((modo) => {
+            const isSelected = config.mode === modo.id
+            const Icon = modo.icon
+            return (
+              <label
+                key={modo.id}
+                className={cn(
+                  'flex flex-col items-start gap-2 rounded-2xl p-4 text-left border-2 transition-all cursor-pointer relative',
+                  isSelected
+                    ? 'border-blue bg-blue/10 shadow-clay-sm text-navy'
+                    : 'border-kid-bg bg-white hover:border-blue/30 text-navy',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="contactModeRadio"
+                  value={modo.id}
+                  checked={isSelected}
+                  disabled={disabled}
+                  onChange={() => handleModeChange(modo.id)}
+                  className="sr-only"
+                />
+                <div className="flex items-center justify-between w-full">
+                  <div
+                    className={cn(
+                      'size-8 rounded-xl flex items-center justify-center',
+                      isSelected ? 'bg-blue text-white' : 'bg-kid-bg text-navy',
+                    )}
+                  >
+                    <Icon weight="bold" className="size-4" />
+                  </div>
+                  {isSelected && <CheckCircle weight="fill" className="size-5 text-blue" />}
+                </div>
+                <span className="text-sm font-extrabold">{modo.title}</span>
+                <span className="text-xs text-kid-muted font-medium leading-snug">
+                  {modo.description}
+                </span>
+              </label>
+            )
+          })}
+        </div>
       </fieldset>
 
-      {error && (
-        <p role="alert" className="text-xs font-bold text-coral bg-coral/10 p-3 rounded-xl">
-          {error}
-        </p>
+      {/* 4. Prazo de Pausa (Apenas para modo timed_pause) */}
+      {config.mode === 'timed_pause' && (
+        <fieldset className="flex flex-col gap-3">
+          <legend className="text-sm font-bold text-navy">Prazo de tolerância da pausa</legend>
+          <div className="flex flex-wrap gap-2">
+            {PRAZOS_PAUSA.map((prazo) => {
+              const isSelected = config.graceDurationSeconds === prazo.value
+              return (
+                <label
+                  key={prazo.value}
+                  className={cn(
+                    'h-11 px-4 rounded-full text-xs font-bold transition-all border flex items-center justify-center cursor-pointer',
+                    isSelected
+                      ? 'bg-blue text-white border-blue shadow-clay-sm'
+                      : 'bg-white text-navy border-kid-bg hover:bg-kid-bg/50',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="pauseGraceRadio"
+                    value={prazo.value}
+                    checked={isSelected}
+                    disabled={disabled}
+                    onChange={() => handleGraceChange(prazo.value)}
+                    className="sr-only"
+                  />
+                  <span>{prazo.label}</span>
+                </label>
+              )
+            })}
+          </div>
+        </fieldset>
       )}
-    </div>
+
+      {/* 5. Limiar de Precisão para Conclusão (0..100, padrão 70) */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <label htmlFor="tracing-threshold-range" className="text-sm font-bold text-navy">
+            Limiar de precisão para conclusão
+          </label>
+          <span className="text-sm font-extrabold text-blue bg-blue/15 px-3 py-1 rounded-full">
+            {config.completionThreshold}% {config.completionThreshold === 70 && '(padrão)'}
+          </span>
+        </div>
+
+        <input
+          id="tracing-threshold-range"
+          type="range"
+          min="0"
+          max="100"
+          step="5"
+          value={config.completionThreshold}
+          disabled={disabled}
+          onChange={(e) => handleThresholdChange(Number(e.target.value))}
+          className="w-full h-2.5 bg-kid-bg rounded-lg appearance-none cursor-pointer accent-blue"
+        />
+
+        <div className="flex items-center justify-between text-xs text-kid-muted font-bold px-1">
+          <span>Mais flexível (0%)</span>
+          <span className="text-blue font-black">Recomendado (70%)</span>
+          <span>Mais rigoroso (100%)</span>
+        </div>
+      </div>
+    </section>
   )
 }

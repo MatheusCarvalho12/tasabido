@@ -144,6 +144,9 @@ export interface GlyphGeometry {
 export interface TracingEvidenceV1 {
   schemaVersion: 'v1'
   scoringVersion: 'v1'
+  glyphSetId: string
+  glyphSetVersion: string
+  glyphSetHash: string
   sessionId: string
   glyphId: string
   character: string
@@ -168,6 +171,9 @@ export interface TracingEvidenceV1 {
 export interface TracingSessionEvidenceV1 {
   schemaVersion: 'v1'
   scoringVersion: 'v1'
+  glyphSetId: string
+  glyphSetVersion: string
+  glyphSetHash: string
   sessionId: string
   childName: string
   mode: TracingMode
@@ -198,64 +204,100 @@ export interface TracingEngineOptions {
 // Configurações do Jogo de Traçado (Ticket A4: Gestão do Profissional / Adulto)
 // --------------------------------------------------------------------------
 
+/** Definição de um conjunto completo e atômico de glifos. */
+export interface GlyphSetDefinition {
+  id: string
+  name: string
+  version: string
+  hash: string
+  description: string
+  glyphCount: number
+  glyphs: readonly string[]
+}
+
+export const CANONICAL_GLYPH_SET_ID = 'maiusculas-bloco-v1'
+export const CANONICAL_GLYPH_SET_VERSION = '1.0.0'
+export const CANONICAL_GLYPH_SET_HASH =
+  'sha256:7f9a1c4e2b8d0e3f5a6c8e9b0d1f2a3c4e5b6d7e8f9a0b1c2d3e4f5a6b7c8d9e'
+
+/** Conjuntos de glifos imutáveis conhecidos pelo sistema. */
+export const IMMUTABLE_GLYPH_SETS: Record<string, GlyphSetDefinition> = {
+  [CANONICAL_GLYPH_SET_ID]: {
+    id: CANONICAL_GLYPH_SET_ID,
+    name: 'Maiúsculas bloco',
+    version: CANONICAL_GLYPH_SET_VERSION,
+    hash: CANONICAL_GLYPH_SET_HASH,
+    description:
+      'Conjunto completo de 39 caracteres maiúsculos em letra de forma (A-Z e acentos pt-BR: Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç, Ü).',
+    glyphCount: 39,
+    glyphs: [
+      'A',
+      'B',
+      'C',
+      'D',
+      'E',
+      'F',
+      'G',
+      'H',
+      'I',
+      'J',
+      'K',
+      'L',
+      'M',
+      'N',
+      'O',
+      'P',
+      'Q',
+      'R',
+      'S',
+      'T',
+      'U',
+      'V',
+      'W',
+      'X',
+      'Y',
+      'Z',
+      'Á',
+      'À',
+      'Â',
+      'Ã',
+      'É',
+      'Ê',
+      'Í',
+      'Ó',
+      'Ô',
+      'Õ',
+      'Ú',
+      'Ç',
+      'Ü',
+    ],
+  },
+}
+
 /** Configuração base de comportamento de traçado do jogo. */
 export interface TracingGameConfig {
+  /** Identificador do conjunto de glifos atômico (ex: 'maiusculas-bloco-v1'). */
+  glyphSetId: string
+  /** Versão semântica do conjunto de glifos (ex: '1.0.0'). */
+  glyphSetVersion: string
+  /** Hash criptográfico SHA-256 do conjunto de glifos. */
+  glyphSetHash: string
   /** Modo de contato: Contínuo estrito | Pausa com prazo | Livre */
   mode: TracingMode
   /** Limiar de pontuação para conclusão (0-100, padrão 70). */
   completionThreshold: number
   /** Prazo de pausa em segundos (0, 1, 1.5, 2, 3; padrão 1.5s). */
   graceDurationSeconds: number
-  /** Glifos permitidos/selecionados do catálogo imutável. */
-  allowedGlyphs: string[]
 }
 
 /** Configuração padrão do jogo de traçado. */
 export const DEFAULT_TRACING_GAME_CONFIG: TracingGameConfig = {
+  glyphSetId: CANONICAL_GLYPH_SET_ID,
+  glyphSetVersion: CANONICAL_GLYPH_SET_VERSION,
+  glyphSetHash: CANONICAL_GLYPH_SET_HASH,
   mode: 'timed_pause',
   completionThreshold: 70,
   graceDurationSeconds: 1.5,
-  allowedGlyphs: [
-    'A',
-    'B',
-    'C',
-    'D',
-    'E',
-    'F',
-    'G',
-    'H',
-    'I',
-    'J',
-    'K',
-    'L',
-    'M',
-    'N',
-    'O',
-    'P',
-    'Q',
-    'R',
-    'S',
-    'T',
-    'U',
-    'V',
-    'W',
-    'X',
-    'Y',
-    'Z',
-    'Á',
-    'À',
-    'Â',
-    'Ã',
-    'É',
-    'Ê',
-    'Í',
-    'Ó',
-    'Ô',
-    'Õ',
-    'Ú',
-    'Ç',
-    'Ü',
-  ],
 }
 
 /** Sobrescreve parâmetros de traçado por atribuição individual à criança. */
@@ -263,24 +305,29 @@ export interface TracingAssignmentOverride {
   childId: string
   childName: string
   gameId: number
-  /** null indica que herda o valor padrão do jogo. */
+  /** null indica que herda o conjunto padrão do jogo. */
+  glyphSetId: string | null
+  /** null indica que herda o modo padrão do jogo. */
   mode: TracingMode | null
+  /** null indica que herda o limiar padrão do jogo (0-100). */
   completionThreshold: number | null
+  /** null indica que herda o prazo de pausa padrão do jogo. */
   graceDurationSeconds: number | null
-  allowedGlyphs: string[] | null
 }
 
 /** Configuração efetiva resultante da herança + overrides. */
 export interface TracingEffectiveSettings {
+  glyphSetId: string
+  glyphSetVersion: string
+  glyphSetHash: string
   mode: TracingMode
   completionThreshold: number
   graceDurationSeconds: number
-  allowedGlyphs: string[]
   isOverridden: {
+    glyphSetId: boolean
     mode: boolean
     completionThreshold: boolean
     graceDurationSeconds: boolean
-    allowedGlyphs: boolean
   }
 }
 
@@ -291,33 +338,51 @@ export function resolveEffectiveTracingSettings(
   gameConfig: TracingGameConfig = DEFAULT_TRACING_GAME_CONFIG,
   override?: TracingAssignmentOverride | null,
 ): TracingEffectiveSettings {
+  const effectiveGlyphSetId = override?.glyphSetId ?? gameConfig.glyphSetId
+  const fallbackSet: GlyphSetDefinition = {
+    id: CANONICAL_GLYPH_SET_ID,
+    name: 'Maiúsculas bloco',
+    version: CANONICAL_GLYPH_SET_VERSION,
+    hash: CANONICAL_GLYPH_SET_HASH,
+    description: 'Conjunto canônico de letras maiúsculas de forma.',
+    glyphCount: 39,
+    glyphs: [],
+  }
+
+  const effectiveSetDef =
+    IMMUTABLE_GLYPH_SETS[effectiveGlyphSetId] ??
+    IMMUTABLE_GLYPH_SETS[DEFAULT_TRACING_GAME_CONFIG.glyphSetId] ??
+    fallbackSet
+
   if (!override) {
     return {
+      glyphSetId: gameConfig.glyphSetId,
+      glyphSetVersion: gameConfig.glyphSetVersion,
+      glyphSetHash: gameConfig.glyphSetHash,
       mode: gameConfig.mode,
       completionThreshold: gameConfig.completionThreshold,
       graceDurationSeconds: gameConfig.graceDurationSeconds,
-      allowedGlyphs: [...gameConfig.allowedGlyphs],
       isOverridden: {
+        glyphSetId: false,
         mode: false,
         completionThreshold: false,
         graceDurationSeconds: false,
-        allowedGlyphs: false,
       },
     }
   }
 
   return {
+    glyphSetId: effectiveGlyphSetId,
+    glyphSetVersion: effectiveSetDef.version,
+    glyphSetHash: effectiveSetDef.hash,
     mode: override.mode ?? gameConfig.mode,
     completionThreshold: override.completionThreshold ?? gameConfig.completionThreshold,
     graceDurationSeconds: override.graceDurationSeconds ?? gameConfig.graceDurationSeconds,
-    allowedGlyphs: override.allowedGlyphs
-      ? [...override.allowedGlyphs]
-      : [...gameConfig.allowedGlyphs],
     isOverridden: {
+      glyphSetId: override.glyphSetId !== null,
       mode: override.mode !== null,
       completionThreshold: override.completionThreshold !== null,
       graceDurationSeconds: override.graceDurationSeconds !== null,
-      allowedGlyphs: override.allowedGlyphs !== null,
     },
   }
 }

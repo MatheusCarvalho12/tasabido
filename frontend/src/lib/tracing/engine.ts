@@ -5,17 +5,20 @@
  */
 
 import { calculateLiveScore } from './scorer'
-import type {
-  GlyphGeometry,
-  Point,
-  TimestampedPoint,
-  TracingEngineOptions,
-  TracingEvidenceV1,
-  TracingMode,
-  TracingNormalizedEvent,
-  TracingScore,
-  TracingState,
-  TracingStroke,
+import {
+  CANONICAL_GLYPH_SET_HASH,
+  CANONICAL_GLYPH_SET_ID,
+  CANONICAL_GLYPH_SET_VERSION,
+  type GlyphGeometry,
+  type Point,
+  type TimestampedPoint,
+  type TracingEngineOptions,
+  type TracingEvidenceV1,
+  type TracingMode,
+  type TracingNormalizedEvent,
+  type TracingScore,
+  type TracingState,
+  type TracingStroke,
 } from './types'
 
 const DEFAULT_GRACE_DURATION_MS = 1500
@@ -539,6 +542,9 @@ export class TracingEngine {
     return {
       schemaVersion: 'v1',
       scoringVersion: 'v1',
+      glyphSetId: CANONICAL_GLYPH_SET_ID,
+      glyphSetVersion: CANONICAL_GLYPH_SET_VERSION,
+      glyphSetHash: CANONICAL_GLYPH_SET_HASH,
       sessionId: this.sessionId,
       glyphId: this.glyph.id,
       character: this.glyph.character,

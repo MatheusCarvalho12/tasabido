@@ -1,14 +1,27 @@
 /**
- * Modal de configuração e override individual de traçado por criança (Ticket A4).
+ * Modal de configuração e override individual de traçado por atribuição à criança (Ticket A4).
  * Permite ao profissional ajustar parâmetros específicos para uma criança (com herança e reset).
+ * Segue o contrato do produto:
+ * - Overrides de conjunto de glifos são atômicos e por ID de conjunto (nunca letras individuais).
+ * - Modos de contato com semântica de radio nativa acessível.
+ * - Limiar de 0 a 100 com padrão 70.
+ * - Ação de reset para herdar valores do jogo.
  */
 
-import { ArrowCounterClockwise, FloppyDiskBack, SlidersHorizontal, X } from '@phosphor-icons/react'
+import {
+  ArrowCounterClockwise,
+  CheckCircle,
+  FloppyDiskBack,
+  SlidersHorizontal,
+  X,
+} from '@phosphor-icons/react'
 import { useState } from 'react'
 
-import { IMMUTABLE_GLYPH_CATALOG_KEYS } from '@/lib/tracing/geometry'
 import {
+  CANONICAL_GLYPH_SET_ID,
   DEFAULT_TRACING_GAME_CONFIG,
+  type GlyphSetDefinition,
+  IMMUTABLE_GLYPH_SETS,
   resolveEffectiveTracingSettings,
   type TracingAssignmentOverride,
   type TracingGameConfig,
@@ -47,6 +60,9 @@ export function ChildAssignmentOverrideModal({
   onSave,
   onReset,
 }: ChildAssignmentOverrideModalProps) {
+  const [overrideGlyphSetId, setOverrideGlyphSetId] = useState<string | null>(
+    existingOverride?.glyphSetId ?? null,
+  )
   const [overrideMode, setOverrideMode] = useState<TracingMode | null>(
     existingOverride?.mode ?? null,
   )
@@ -56,21 +72,29 @@ export function ChildAssignmentOverrideModal({
   const [overrideGrace, setOverrideGrace] = useState<number | null>(
     existingOverride?.graceDurationSeconds ?? null,
   )
-  const [overrideGlyphs, setOverrideGlyphs] = useState<string[] | null>(
-    existingOverride?.allowedGlyphs ?? null,
-  )
 
   const currentOverride: TracingAssignmentOverride = {
     childId,
     childName,
     gameId,
+    glyphSetId: overrideGlyphSetId,
     mode: overrideMode,
     completionThreshold: overrideThreshold,
     graceDurationSeconds: overrideGrace,
-    allowedGlyphs: overrideGlyphs,
   }
 
   const effective = resolveEffectiveTracingSettings(gameConfig, currentOverride)
+  const defaultSet: GlyphSetDefinition = IMMUTABLE_GLYPH_SETS[CANONICAL_GLYPH_SET_ID] ?? {
+    id: CANONICAL_GLYPH_SET_ID,
+    name: 'Maiúsculas bloco',
+    version: '1.0.0',
+    hash: '',
+    description: '',
+    glyphCount: 39,
+    glyphs: [],
+  }
+  const effectiveGlyphSet: GlyphSetDefinition =
+    IMMUTABLE_GLYPH_SETS[effective.glyphSetId] ?? defaultSet
 
   if (!isOpen) return null
 
@@ -80,23 +104,11 @@ export function ChildAssignmentOverrideModal({
   }
 
   const handleResetToInherited = () => {
+    setOverrideGlyphSetId(null)
     setOverrideMode(null)
     setOverrideThreshold(null)
     setOverrideGrace(null)
-    setOverrideGlyphs(null)
     onReset()
-  }
-
-  const toggleGlyphOverride = (char: string) => {
-    const activeList = overrideGlyphs ?? [...gameConfig.allowedGlyphs]
-    let nextList: string[]
-    if (activeList.includes(char)) {
-      if (activeList.length <= 1) return
-      nextList = activeList.filter((c) => c !== char)
-    } else {
-      nextList = [...activeList, char]
-    }
-    setOverrideGlyphs(nextList)
   }
 
   return (
@@ -152,6 +164,13 @@ export function ChildAssignmentOverrideModal({
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
             <div className="p-2.5 rounded-xl bg-kid-bg/50">
+              <span className="text-kid-muted block">Estilo/Letras</span>
+              <strong className="text-navy">{effectiveGlyphSet.name}</strong>
+              {effective.isOverridden.glyphSetId && (
+                <span className="block text-[10px] text-blue font-bold">(Personalizado)</span>
+              )}
+            </div>
+            <div className="p-2.5 rounded-xl bg-kid-bg/50">
               <span className="text-kid-muted block">Modo</span>
               <strong className="text-navy">{MODOS_LABEL[effective.mode]}</strong>
               {effective.isOverridden.mode && (
@@ -172,20 +191,63 @@ export function ChildAssignmentOverrideModal({
                 <span className="block text-[10px] text-blue font-bold">(Personalizado)</span>
               )}
             </div>
-            <div className="p-2.5 rounded-xl bg-kid-bg/50">
-              <span className="text-kid-muted block">Letras</span>
-              <strong className="text-navy">{effective.allowedGlyphs.length} ativas</strong>
-              {effective.isOverridden.allowedGlyphs && (
-                <span className="block text-[10px] text-blue font-bold">(Personalizado)</span>
-              )}
-            </div>
           </div>
         </div>
 
-        {/* 1. Override do Modo de Contato */}
-        <div className="flex flex-col gap-2">
+        {/* 1. Override do Conjunto Atômico de Letras */}
+        <fieldset className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-navy">Modo de contato</span>
+            <legend className="text-sm font-bold text-navy">Conjunto de letras</legend>
+            {overrideGlyphSetId !== null && (
+              <button
+                type="button"
+                onClick={() => setOverrideGlyphSetId(null)}
+                className="text-xs text-blue font-bold hover:underline"
+              >
+                Usar padrão do jogo ({effectiveGlyphSet.name})
+              </button>
+            )}
+          </div>
+          <div className="grid gap-2">
+            {Object.values(IMMUTABLE_GLYPH_SETS).map((setDef) => {
+              const isSelected = effective.glyphSetId === setDef.id
+              return (
+                <label
+                  key={setDef.id}
+                  className={cn(
+                    'p-3 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer relative',
+                    isSelected
+                      ? 'bg-blue/10 border-blue text-navy shadow-clay-sm'
+                      : 'bg-white border-kid-bg text-navy hover:bg-kid-bg/50',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="overrideGlyphSetRadio"
+                    value={setDef.id}
+                    checked={isSelected}
+                    onChange={() => setOverrideGlyphSetId(setDef.id)}
+                    className="sr-only"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-extrabold">
+                      {setDef.name} (v{setDef.version})
+                    </span>
+                    <span className="text-xs text-kid-muted">{setDef.description}</span>
+                  </div>
+                  {isSelected && (
+                    <CheckCircle weight="fill" className="size-5 text-blue shrink-0" />
+                  )}
+                </label>
+              )
+            })}
+          </div>
+        </fieldset>
+
+        {/* 2. Override do Modo de Contato (Radiogroup semântico nativo) */}
+        <fieldset className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <legend className="text-sm font-bold text-navy">Modo de contato</legend>
             {overrideMode !== null && (
               <button
                 type="button"
@@ -200,25 +262,31 @@ export function ChildAssignmentOverrideModal({
             {(['strict_continuous', 'timed_pause', 'free'] as TracingMode[]).map((m) => {
               const isSelected = effective.mode === m
               return (
-                <button
+                <label
                   key={m}
-                  type="button"
-                  onClick={() => setOverrideMode(m)}
                   className={cn(
-                    'h-11 rounded-xl text-xs font-bold border transition-all',
+                    'h-11 rounded-xl text-xs font-bold border transition-all flex items-center justify-center cursor-pointer',
                     isSelected
                       ? 'bg-blue text-white border-blue shadow-clay-sm'
                       : 'bg-white text-navy border-kid-bg hover:bg-kid-bg/50',
                   )}
                 >
-                  {MODOS_LABEL[m]}
-                </button>
+                  <input
+                    type="radio"
+                    name="overrideModeRadio"
+                    value={m}
+                    checked={isSelected}
+                    onChange={() => setOverrideMode(m)}
+                    className="sr-only"
+                  />
+                  <span>{MODOS_LABEL[m]}</span>
+                </label>
               )
             })}
           </div>
-        </div>
+        </fieldset>
 
-        {/* 2. Override do Limiar de Precisão */}
+        {/* 3. Override do Limiar de Precisão (0..100) */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <label htmlFor="child-threshold-range" className="text-sm font-bold text-navy">
@@ -242,19 +310,19 @@ export function ChildAssignmentOverrideModal({
           <input
             id="child-threshold-range"
             type="range"
-            min="40"
-            max="95"
+            min="0"
+            max="100"
             step="5"
             value={effective.completionThreshold}
             onChange={(e) => setOverrideThreshold(Number(e.target.value))}
-            className="w-full h-2 bg-kid-bg rounded-lg appearance-none cursor-pointer accent-blue"
+            className="w-full h-2.5 bg-kid-bg rounded-lg appearance-none cursor-pointer accent-blue"
           />
         </div>
 
-        {/* 3. Override do Prazo de Pausa */}
-        <div className="flex flex-col gap-2">
+        {/* 4. Override do Prazo de Pausa */}
+        <fieldset className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-navy">Prazo de pausa (segundos)</span>
+            <legend className="text-sm font-bold text-navy">Prazo de pausa (segundos)</legend>
             {overrideGrace !== null && (
               <button
                 type="button"
@@ -269,62 +337,29 @@ export function ChildAssignmentOverrideModal({
             {[0, 1.0, 1.5, 2.0, 3.0].map((sec) => {
               const isSelected = effective.graceDurationSeconds === sec
               return (
-                <button
+                <label
                   key={sec}
-                  type="button"
-                  onClick={() => setOverrideGrace(sec)}
                   className={cn(
-                    'h-9 px-3.5 rounded-full text-xs font-bold transition-all',
+                    'h-9 px-3.5 rounded-full text-xs font-bold transition-all border flex items-center justify-center cursor-pointer',
                     isSelected
-                      ? 'bg-blue text-white shadow-clay-sm'
-                      : 'bg-white text-navy border border-kid-bg hover:bg-kid-bg',
+                      ? 'bg-blue text-white shadow-clay-sm border-blue'
+                      : 'bg-white text-navy border-kid-bg hover:bg-kid-bg',
                   )}
                 >
-                  {sec === 1.5 ? '1,5s' : `${sec}s`}
-                </button>
+                  <input
+                    type="radio"
+                    name="overrideGraceRadio"
+                    value={sec}
+                    checked={isSelected}
+                    onChange={() => setOverrideGrace(sec)}
+                    className="sr-only"
+                  />
+                  <span>{sec === 1.5 ? '1,5s (padrão)' : `${sec}s`}</span>
+                </label>
               )
             })}
           </div>
-        </div>
-
-        {/* 4. Override de Letras Permitidas */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-navy">
-              Letras permitidas ({effective.allowedGlyphs.length} ativas)
-            </span>
-            {overrideGlyphs !== null && (
-              <button
-                type="button"
-                onClick={() => setOverrideGlyphs(null)}
-                className="text-xs text-blue font-bold hover:underline"
-              >
-                Usar padrão do jogo
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-7 sm:grid-cols-13 gap-1.5 p-3 rounded-2xl bg-white border border-kid-bg max-h-36 overflow-y-auto">
-            {IMMUTABLE_GLYPH_CATALOG_KEYS.map((char) => {
-              const isSelected = effective.allowedGlyphs.includes(char)
-              return (
-                <button
-                  key={char}
-                  type="button"
-                  onClick={() => toggleGlyphOverride(char)}
-                  aria-pressed={isSelected}
-                  className={cn(
-                    'relative size-8 rounded-lg font-black text-xs flex items-center justify-center transition-all',
-                    isSelected
-                      ? 'bg-blue text-white'
-                      : 'bg-kid-bg/50 text-kid-muted hover:bg-kid-bg',
-                  )}
-                >
-                  {char}
-                </button>
-              )
-            })}
-          </div>
-        </div>
+        </fieldset>
 
         {/* Ações */}
         <div className="flex items-center justify-end gap-3 pt-2 border-t border-kid-bg">

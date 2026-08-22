@@ -38,13 +38,16 @@ import {
   normalizeChildFirstName,
   validateGlyphSequence,
 } from '@/lib/tracing/geometry'
-import type {
-  GlyphGeometry,
-  TracingEvidenceV1,
-  TracingMode,
-  TracingScore,
-  TracingSessionEvidenceV1,
-  TracingState,
+import {
+  CANONICAL_GLYPH_SET_HASH,
+  CANONICAL_GLYPH_SET_ID,
+  CANONICAL_GLYPH_SET_VERSION,
+  type GlyphGeometry,
+  type TracingEvidenceV1,
+  type TracingMode,
+  type TracingScore,
+  type TracingSessionEvidenceV1,
+  type TracingState,
 } from '@/lib/tracing/types'
 
 export type FlowScreenState =
@@ -209,6 +212,9 @@ export function TracingGamePage() {
         const sessionEvidence: TracingSessionEvidenceV1 = {
           schemaVersion: 'v1',
           scoringVersion: 'v1',
+          glyphSetId: CANONICAL_GLYPH_SET_ID,
+          glyphSetVersion: CANONICAL_GLYPH_SET_VERSION,
+          glyphSetHash: CANONICAL_GLYPH_SET_HASH,
           sessionId: runSessionIdRef.current,
           childName: child.name,
           mode: tracingMode,
@@ -323,6 +329,9 @@ export function TracingGamePage() {
     const sessionEvidence: TracingSessionEvidenceV1 = {
       schemaVersion: 'v1',
       scoringVersion: 'v1',
+      glyphSetId: CANONICAL_GLYPH_SET_ID,
+      glyphSetVersion: CANONICAL_GLYPH_SET_VERSION,
+      glyphSetHash: CANONICAL_GLYPH_SET_HASH,
       sessionId: runSessionIdRef.current,
       childName: child.name,
       mode: tracingMode,

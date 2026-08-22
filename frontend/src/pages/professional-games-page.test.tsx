@@ -148,4 +148,19 @@ describe('ProfessionalGamesPage', () => {
       expect(mocks.unpublishGame).toHaveBeenCalledWith(1)
     })
   })
+
+  it('permite abrir o modal de personalização por criança através da ação no card', async () => {
+    renderPage()
+
+    const customizeBtns = await screen.findAllByRole('button', { name: /Ajustar por criança/i })
+    expect(customizeBtns.length).toBeGreaterThanOrEqual(1)
+
+    const targetBtn = customizeBtns[0]
+    if (!targetBtn) throw new Error('Target button not found')
+    fireEvent.click(targetBtn)
+
+    expect(await screen.findByText(/Ajustes de Traçado: Lucas/i)).toBeInTheDocument()
+    expect(screen.getByText(/Jogo: Escreva seu nome/i)).toBeInTheDocument()
+    expect(screen.getByText(/Salvar personalização/i)).toBeInTheDocument()
+  })
 })
