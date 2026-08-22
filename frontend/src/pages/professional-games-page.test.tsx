@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as tracingAdapter from '@/lib/tracing/adapter'
 import { ProfessionalGamesPage } from '@/pages/ProfessionalGamesPage'
 import type { Game } from '@/types/game'
 
@@ -46,6 +47,15 @@ vi.mock('@/lib/games', async (importOriginal) => {
   }
 })
 
+vi.mock('@/lib/tracing/adapter', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/tracing/adapter')>()
+  return {
+    ...actual,
+    fetchLinkedChildrenApi: vi.fn().mockResolvedValue([]),
+    fetchTracingRunsListApi: vi.fn().mockResolvedValue([]),
+  }
+})
+
 function fakeGame(overrides: Partial<Game> = {}): Game {
   return {
     id: 1,
@@ -85,6 +95,8 @@ describe('ProfessionalGamesPage', () => {
         fakeGame({ id: 2, titulo: 'Complete as formas', status: 'draft' }),
       ],
     })
+    vi.mocked(tracingAdapter.fetchLinkedChildrenApi).mockResolvedValue([])
+    vi.mocked(tracingAdapter.fetchTracingRunsListApi).mockResolvedValue([])
   })
 
   it('lista os jogos do profissional com título, status e stats', async () => {
@@ -96,6 +108,23 @@ describe('ProfessionalGamesPage', () => {
     expect(screen.getByRole('heading', { name: 'Complete as formas' })).toBeInTheDocument()
     expect(screen.getByText('Publicado')).toBeInTheDocument()
     expect(screen.getByText('Rascunho')).toBeInTheDocument()
+  })
+
+  it('mostra mensagem honesta quando não há crianças vinculadas e oculta personalização', async () => {
+    renderPage()
+
+    expect(
+      await screen.findByText(
+        'Nenhuma criança vinculada para personalização individual de parâmetros.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Ajustar por criança/i })).toBeNull()
+  })
+
+  it('mostra mensagem honesta quando não há partidas gravadas na auditoria', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Nenhuma partida registrada até o momento.')).toBeInTheDocument()
   })
 
   it('filtro Rascunhos mostra só os rascunhos', async () => {
@@ -149,7 +178,11 @@ describe('ProfessionalGamesPage', () => {
     })
   })
 
-  it('permite abrir o modal de personalização por criança através da ação no card', async () => {
+  it('permite abrir o modal de personalização por criança quando há crianças vinculadas', async () => {
+    vi.mocked(tracingAdapter.fetchLinkedChildrenApi).mockResolvedValue([
+      { id: 'child-10', name: 'Lucas' },
+    ])
+
     renderPage()
 
     const customizeBtns = await screen.findAllByRole('button', { name: /Ajustar por criança/i })

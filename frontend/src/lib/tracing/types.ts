@@ -220,7 +220,11 @@ export const CANONICAL_GLYPH_SET_VERSION = '1.0.0'
 export const CANONICAL_GLYPH_SET_HASH =
   'sha256:7f9a1c4e2b8d0e3f5a6c8e9b0d1f2a3c4e5b6d7e8f9a0b1c2d3e4f5a6b7c8d9e'
 
-/** Conjuntos de glifos imutáveis conhecidos pelo sistema. */
+/**
+ * Conjuntos de glifos conhecidos pelo frontend para catálogo e pré-visualização.
+ * Nota de arquitetura: A geometria de produção autoritativa e identidades de artefatos
+ * serão fornecidas pelo servidor na integração do Ticket A5.
+ */
 export const IMMUTABLE_GLYPH_SETS: Record<string, GlyphSetDefinition> = {
   [CANONICAL_GLYPH_SET_ID]: {
     id: CANONICAL_GLYPH_SET_ID,
@@ -228,7 +232,7 @@ export const IMMUTABLE_GLYPH_SETS: Record<string, GlyphSetDefinition> = {
     version: CANONICAL_GLYPH_SET_VERSION,
     hash: CANONICAL_GLYPH_SET_HASH,
     description:
-      'Conjunto completo de 39 caracteres maiúsculos em letra de forma (A-Z e acentos pt-BR: Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç, Ü).',
+      'Conjunto completo de 39 caracteres maiúsculos em letra de forma (A-Z e acentos pt-BR: Á, À, Â, Ã, É, Ê, Í, Ó, Ô, Õ, Ú, Ç, Ü). Pré-visualização estática local.',
     glyphCount: 39,
     glyphs: [
       'A',

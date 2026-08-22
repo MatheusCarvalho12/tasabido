@@ -3,6 +3,7 @@ import {
   CheckCircle,
   FileText,
   GridFour,
+  Info,
   PencilSimple,
   Plus,
   SignOut,
@@ -51,7 +52,7 @@ const FILTROS: Array<{ value: GameFilter; label: string; icon: typeof GridFour }
  * Gestão de jogos do profissional:
  * - Listagem e publicação de jogos (GET /api/games?scope=mine).
  * - Jornada de personalização de parâmetros de traçado por atribuição individual à criança (Ticket A4).
- * - Auditoria e revisão em-app de partidas registradas.
+ * - Auditoria e revisão em-app de partidas registradas sem dados inventados de runtime.
  */
 export function ProfessionalGamesPage() {
   const navigate = useNavigate()
@@ -92,6 +93,8 @@ export function ProfessionalGamesPage() {
       setLinkedChildren(children)
       if (children.length > 0) {
         setSelectedChild(children[0] ?? null)
+      } else {
+        setSelectedChild(null)
       }
     })
 
@@ -119,11 +122,18 @@ export function ProfessionalGamesPage() {
   })
 
   const handleOpenCustomizeForChild = async (game: Game) => {
+    if (linkedChildren.length === 0) {
+      return
+    }
+
+    const child = selectedChild ?? linkedChildren[0]
+    if (!child) {
+      return
+    }
+
     setCustomizingGame(game)
     const config = await fetchTracingGameConfigApi(game.id)
     setCustomizingConfig(config)
-
-    const child = selectedChild ?? linkedChildren[0] ?? { id: 'child-1', name: 'Lucas' }
     setSelectedChild(child)
 
     const override = await fetchChildAssignmentOverrideApi(child.id, game.id)
@@ -132,6 +142,7 @@ export function ProfessionalGamesPage() {
   }
 
   const handleSaveOverride = async (override: TracingAssignmentOverride) => {
+    if (!selectedChild) return
     await saveChildAssignmentOverrideApi(override)
     setIsOverrideModalOpen(false)
   }
@@ -211,6 +222,34 @@ export function ProfessionalGamesPage() {
                   Criar jogo
                 </button>
               </div>
+
+              {/* Informação sobre vinculação de crianças */}
+              {linkedChildren.length === 0 ? (
+                <div className="mt-4 flex items-center gap-2.5 rounded-2xl bg-blue/10 px-4 py-3 text-xs sm:text-sm font-medium text-navy border border-blue/20">
+                  <Info weight="bold" className="size-4 text-blue shrink-0" />
+                  <span>
+                    Nenhuma criança vinculada para personalização individual de parâmetros.
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-4 flex items-center gap-2 text-xs font-bold text-kid-muted">
+                  <span>Criança selecionada para ajustes:</span>
+                  <select
+                    value={selectedChild?.id ?? ''}
+                    onChange={(e) => {
+                      const found = linkedChildren.find((c) => c.id === e.target.value)
+                      if (found) setSelectedChild(found)
+                    }}
+                    className="rounded-lg border border-border bg-white px-2 py-1 text-navy font-extrabold"
+                  >
+                    {linkedChildren.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div
                 role="tablist"
@@ -320,7 +359,9 @@ export function ProfessionalGamesPage() {
                             params: { gameId: String(selected.id) },
                           })
                         }
-                        onCustomizeForChild={handleOpenCustomizeForChild}
+                        onCustomizeForChild={
+                          linkedChildren.length > 0 ? handleOpenCustomizeForChild : undefined
+                        }
                         onToggleStatus={(selected) => toggleStatusMutation.mutate(selected)}
                       />
                     ))}
@@ -406,10 +447,10 @@ export function ProfessionalGamesPage() {
       </main>
 
       {/* Modal de Personalização por Criança (Integrado na Jornada do Profissional) */}
-      {customizingGame && (
+      {customizingGame && selectedChild && (
         <ChildAssignmentOverrideModal
-          childId={selectedChild?.id ?? 'child-1'}
-          childName={selectedChild?.name ?? 'Lucas'}
+          childId={selectedChild.id}
+          childName={selectedChild.name}
           gameId={customizingGame.id}
           gameTitle={customizingGame.titulo}
           gameConfig={customizingConfig}

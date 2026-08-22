@@ -69,7 +69,7 @@ async function escolherDataNascimento(
 describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
   beforeEach(() => {
     // Sem rede nos testes: a busca do ViaCEP falha em silêncio por padrão.
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'))
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     useCadastroStore.setState({
       papel: null,
       nome: '',
@@ -86,7 +86,7 @@ describe('CadastroSobrePage (passo 2 — Sobre você)', () => {
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('exibe título, subtítulo e os oito campos do formulário', async () => {

@@ -149,7 +149,7 @@ export function TracingBehaviorSection({
       <fieldset className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <legend className="text-sm font-bold text-navy">
-            Conjunto de letras e estilo (Catálogo atômico)
+            Conjunto de letras e estilo (Catálogo de pré-visualização)
           </legend>
           <span className="text-xs font-bold text-blue bg-blue/15 px-2.5 py-0.5 rounded-full">
             {currentSet.glyphCount} caracteres
@@ -189,7 +189,7 @@ export function TracingBehaviorSection({
                 <p className="text-xs text-kid-muted font-medium">{setDef.description}</p>
 
                 <div className="flex items-center gap-2 text-[11px] font-mono text-kid-muted pt-1 border-t border-kid-bg/60">
-                  <span className="font-bold">SHA-256:</span>
+                  <span className="font-bold">Hash (pré-visualização):</span>
                   <span className="truncate">{setDef.hash}</span>
                 </div>
               </label>
