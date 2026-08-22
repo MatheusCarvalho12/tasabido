@@ -18,13 +18,13 @@ import { CadastroSobrePage } from '@/pages/CadastroSobrePage'
 import { ForgotPasswordStubPage } from '@/pages/ForgotPasswordStubPage'
 import { GameFormPage } from '@/pages/GameFormPage'
 import { HomePage } from '@/pages/HomePage'
-import { JogoEmConstrucaoPage } from '@/pages/JogoEmConstrucaoPage'
 import { JogosPage } from '@/pages/JogosPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { ParentsAreaPage } from '@/pages/ParentsAreaPage'
 import { PrivacyPage } from '@/pages/PrivacyPage'
 import { ProfessionalGamesPage } from '@/pages/ProfessionalGamesPage'
 import { ProfessionalLoginPage } from '@/pages/ProfessionalLoginPage'
+import { TracingGamePage } from '@/pages/TracingGamePage'
 import { useParentPinStore } from '@/stores/useParentPinStore'
 
 const rootRoute = createRootRoute({
@@ -150,7 +150,7 @@ const privacyRoute = createRoute({
 const jogarRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/jogar/$slug',
-  component: JogoEmConstrucaoPage,
+  component: TracingGamePage,
 })
 
 const pinRoute = createRoute({
